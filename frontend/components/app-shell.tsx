@@ -23,6 +23,9 @@ import {
   Sparkles,
   LogOut,
   Menu,
+  Zap,
+  Globe2,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -59,6 +62,7 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
       { href: "/comercial/preencher", label: "Preencher", icon: ClipboardEdit },
       { href: "/comercial/vendas", label: "Vendas", icon: ShoppingBag },
       { href: "/comercial/reunioes", label: "Reuniões", icon: Calendar },
+      { href: "/comercial/intercambio", label: "Intercâmbio", icon: Globe2 },
     ],
   },
   {
@@ -72,6 +76,7 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
       { href: "/marketing/email", label: "Email", icon: Mail },
       { href: "/marketing/landing-pages", label: "Landing Pages", icon: MousePointer },
       { href: "/marketing/seo", label: "SEO", icon: Search },
+      { href: "/marketing/lancamentos", label: "Lançamentos", icon: Zap },
     ],
   },
   {
@@ -86,6 +91,12 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
       { href: "/catalogo/produtos", label: "Produtos", icon: Package },
       { href: "/catalogo/canais", label: "Canais", icon: Radio },
       { href: "/catalogo/eventos", label: "Eventos", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Configurações",
+    items: [
+      { href: "/configuracoes/import", label: "Importar", icon: Upload },
     ],
   },
 ];
@@ -225,6 +236,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/marketing/email": "Email",
   "/marketing/landing-pages": "Landing Pages",
   "/marketing/seo": "SEO",
+  "/marketing/lancamentos": "Lançamentos",
+  "/comercial/intercambio": "Intercâmbio",
+  "/configuracoes/import": "Importar planilhas",
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

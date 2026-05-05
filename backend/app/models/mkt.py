@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     Date,
     DateTime,
     Integer,
@@ -85,3 +86,106 @@ class InscricaoEvento(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+
+
+# ============================================================
+# Sprint APR1 — Tabelas adicionadas em migration 008
+# ============================================================
+
+class MetaAdsCampanha(Base):
+    __tablename__ = "meta_ads_campanhas"
+    __table_args__ = (
+        UniqueConstraint("ano", "mes", "nome_campanha", name="uq_meta_ads_periodo_campanha"),
+        CheckConstraint("mes BETWEEN 1 AND 12", name="ck_meta_ads_mes"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ano: Mapped[int] = mapped_column(Integer, nullable=False)
+    mes: Mapped[int] = mapped_column(Integer, nullable=False)
+    nome_campanha: Mapped[str] = mapped_column(String(500), nullable=False)
+    veiculacao: Mapped[str | None] = mapped_column(String(50))
+    orcamento_diario: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    investimento: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default=text("0"))
+    impressoes: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    alcance: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    cliques: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    cpm: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    cpc: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    ctr: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    frequencia: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    resultados: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    indicador_resultado: Mapped[str | None] = mapped_column(String(200))
+    custo_por_resultado: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    leads: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    leads_imersao: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    compras: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    valor_resultados: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=text("0"))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+class VendaHotmart(Base):
+    __tablename__ = "vendas_hotmart"
+    __table_args__ = (
+        UniqueConstraint("transacao", name="uq_vendas_hotmart_transacao"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    transacao: Mapped[str] = mapped_column(String(100), nullable=False)
+    produto: Mapped[str] = mapped_column(String(500), nullable=False)
+    produtor: Mapped[str | None] = mapped_column(String(200))
+    afiliado: Mapped[str | None] = mapped_column(String(200))
+    meio_pagamento: Mapped[str | None] = mapped_column(String(50))
+    moeda: Mapped[str | None] = mapped_column(String(10))
+    preco_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=text("0"))
+    faturamento_liquido: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=text("0"))
+    numero_parcela: Mapped[int | None] = mapped_column(Integer)
+    recorrencia: Mapped[str | None] = mapped_column(String(50))
+    data_venda: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    data_confirmacao: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    status: Mapped[str | None] = mapped_column(String(50))
+    cliente_nome: Mapped[str | None] = mapped_column(String(300))
+    cliente_email: Mapped[str | None] = mapped_column(String(200))
+    cliente_estado: Mapped[str | None] = mapped_column(String(10))
+    cliente_pais: Mapped[str | None] = mapped_column(String(50))
+    codigo_produto: Mapped[str | None] = mapped_column(String(50))
+    codigo_oferta: Mapped[str | None] = mapped_column(String(50))
+    tipo_pagamento_oferta: Mapped[str | None] = mapped_column(String(100))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+class Lancamento(Base):
+    __tablename__ = "lancamentos"
+    __table_args__ = (
+        UniqueConstraint("ano", "mes", "nome", name="uq_lancamento_periodo_nome"),
+        CheckConstraint("mes BETWEEN 1 AND 12", name="ck_lancamentos_mes"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ano: Mapped[int] = mapped_column(Integer, nullable=False)
+    mes: Mapped[int] = mapped_column(Integer, nullable=False)
+    nome: Mapped[str] = mapped_column(String(200), nullable=False)
+    investimento_meta: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    investimento_resultado: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    leads_meta: Mapped[int | None] = mapped_column(Integer)
+    leads_organico: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    leads_pago: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    leads_total: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    cpl_meta: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    cpl_resultado: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    mqls_meta: Mapped[int | None] = mapped_column(Integer)
+    mqls_resultado: Mapped[int | None] = mapped_column(Integer)
+    alunos_meta: Mapped[int | None] = mapped_column(Integer)
+    alunos_resultado: Mapped[int | None] = mapped_column(Integer)
+    receita_meta: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    receita_resultado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    engajamento: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

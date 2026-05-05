@@ -171,3 +171,32 @@ class NoShowOut(BaseModel):
     vendas_via_reuniao: int
     taxa_no_show: float | None
     taxa_reuniao_venda: float | None
+
+
+# ─── Intercambio (Sprint APR1) ───
+from pydantic import Field as _Field
+
+
+class IntercambioBase(BaseModel):
+    nome_aluno: str = _Field(min_length=2, max_length=300)
+    valor: Decimal = _Field(gt=0)
+    data_venda: date
+    observacao: str | None = None
+
+
+class IntercambioCreate(IntercambioBase):
+    pass
+
+
+class IntercambioUpdate(BaseModel):
+    nome_aluno: str | None = None
+    valor: Decimal | None = None
+    data_venda: date | None = None
+    observacao: str | None = None
+
+
+class IntercambioOut(IntercambioBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    criado_em: datetime
+    atualizado_em: datetime
