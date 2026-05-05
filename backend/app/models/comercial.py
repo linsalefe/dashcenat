@@ -98,3 +98,20 @@ class Reuniao(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+
+
+# ============================================================
+# Sprint APR1 — comercial.intercambio
+# ============================================================
+
+class Intercambio(Base):
+    __tablename__ = "intercambio"
+    __table_args__ = ({"schema": "comercial"},)
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    nome_aluno: Mapped[str] = mapped_column(String(300), nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    data_venda: Mapped[date] = mapped_column(Date, nullable=False)
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
