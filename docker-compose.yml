@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dashcenat-db
+    environment:
+      POSTGRES_USER: dashcenat
+      POSTGRES_PASSWORD: dashcenat_dev
+      POSTGRES_DB: dashcenat
+    ports:
+      - "5442:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
