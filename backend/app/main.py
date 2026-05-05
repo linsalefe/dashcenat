@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.db import engine
@@ -11,10 +10,7 @@ from app.api.v1 import auth, catalogo
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS mkt"))
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS comercial"))
+    # Schemas são criados pela migration (única fonte da verdade).
     yield
     await engine.dispose()
 

@@ -1,7 +1,7 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool, text
+from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -57,11 +57,6 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
     async with connectable.connect() as connection:
-        await connection.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
-        await connection.execute(text("CREATE SCHEMA IF NOT EXISTS mkt"))
-        await connection.execute(text("CREATE SCHEMA IF NOT EXISTS comercial"))
-        await connection.commit()
-
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
 
