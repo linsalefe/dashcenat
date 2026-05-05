@@ -1,0 +1,612 @@
+# DashCENAT — Especificação Técnica
+
+Dashboard interno do CENAT consolidando métricas de Marketing e Comercial.
+
+- **Tipo:** Single-tenant (CENAT)
+- **Domínio (produção):** `dash.cenatdata.online`
+- **Repo:** `git@github.com:linsalefe/dashcenat.git`
+- **Servidor:** VPS Contabo (`vmi2988536`), diretório `~/dashcenat`
+- **Time:** 6-10 pessoas preenchendo manualmente. Login compartilhado por usuário (sem hierarquia de permissões — todos veem e editam tudo).
+
+> ⚠️ **Versão da spec:** v2 (pós-auditoria Sprint 1). A v1 pré-execução previa Next 14 / React 18 / Tailwind 3 / shadcn (Radix). Stack real entregue no Sprint 1 é uma geração à frente — Next 16 / React 19 / Tailwind 4 / shadcn 4 (Base UI). Esta versão reflete o que está no código.
+
+---
+
+## 1. Stack (real, validada no Sprint 1)
+
+| Camada | Tecnologia | Observações |
+|---|---|---|
+| Backend | FastAPI 0.110+ | Python 3.11, SQLAlchemy 2.0 async, Pydantic v2 |
+| Migrations | Alembic | template async, `version_table_schema="core"` |
+| DB | PostgreSQL 16 | schemas: `core`, `mkt`, `comercial` |
+| Frontend | **Next.js 16** (App Router) | React 19, TypeScript |
+| Styling | **Tailwind CSS 4** | sem `tailwind.config.ts`; tema via `@theme inline` em `globals.css` |
+| UI Kit | **shadcn 4** com **Base UI** (não Radix) | API: `<DialogTrigger render={<Button/>}>` |
+| Charts | Recharts 2.13+ | suporte a React 19 |
+| Auth | JWT HS256 | tabela `core.users`, login compartilhado |
+| Deploy | systemd + Nginx + Certbot (Sprint 5) | dois services: `dashcenat-api`, `dashcenat-web` |
+| Dev local | docker-compose | apenas Postgres em container; app roda host |
+
+### 1.1 Particularidades da stack nova
+
+- **Next 16:** `frontend/AGENTS.md` é gerado automaticamente alertando que APIs e convenções diferem do que LLMs conhecem. Claude Code deve ler `node_modules/next/dist/docs/` quando em dúvida.
+- **React 19:** `use()` hook disponível, novo lifecycle de Suspense.
+- **Tailwind 4:** sem arquivo de config; tudo em `app/globals.css` com `@import "tailwindcss"` + `@theme inline { ... }`. PostCSS plugin é `@tailwindcss/postcss`.
+- **shadcn 4 com Base UI:** padrão de composição mudou. Em vez de `<DialogTrigger asChild><Button/></DialogTrigger>`, agora é `<DialogTrigger render={<Button/>}>`. O CLI continua sendo `pnpm dlx shadcn@latest add <componente>`. Style instalado: `base-nova`.
+- **lucide-react** como icon library (configurado em `components.json`). **Não usar ícones de cérebro** (regra de marca CENAT).
+
+---
+
+## 2. Estrutura de pastas (estado real)
+
+```
+~/dashcenat/
+├── backend/
+│   ├── app/
+│   │   ├── core/
+│   │   │   ├── config.py        # Pydantic Settings
+│   │   │   ├── db.py            # engine async + async_session + get_db
+│   │   │   └── security.py      # bcrypt + JWT
+│   │   ├── models/
+│   │   │   ├── base.py          # Base + helper pk_uuid()
+│   │   │   ├── user.py          # core.users
+│   │   │   ├── catalogo.py      # core.{produtos, canais, eventos}
+│   │   │   ├── comercial.py     # comercial.{funil_etapas, funil_resultado, vendas, reunioes}
+│   │   │   └── mkt.py           # mkt.{metricas_canal, leads_eventos, inscricoes_evento}
+│   │   ├── schemas/             # Pydantic
+│   │   ├── api/
+│   │   │   ├── deps.py          # get_current_user
+│   │   │   └── v1/
+│   │   │       ├── auth.py
+│   │   │       ├── catalogo.py
+│   │   │       ├── comercial.py # Sprint 2
+│   │   │       └── mkt.py       # Sprint 3
+│   │   ├── services/            # cálculos derivados
+│   │   ├── etl/
+│   │   │   ├── seed.py
+│   │   │   └── parsers/
+│   │   │       ├── comercial.py # Sprint 2 (lê DASH_*.xlsx)
+│   │   │       └── mkt.py       # Sprint 3 (lê Sistema_Marketing*.xlsx)
+│   │   └── main.py
+│   ├── alembic/
+│   ├── tests/
+│   └── pyproject.toml
+├── frontend/                    # Next 16, ver AGENTS.md
+│   ├── app/
+│   │   ├── (auth)/login/
+│   │   ├── (dashboard)/
+│   │   │   ├── layout.tsx       # sidebar com sub-items
+│   │   │   ├── overview/        # Sprint 5
+│   │   │   ├── comercial/
+│   │   │   │   ├── funil/       # Sprint 2
+│   │   │   │   ├── preencher/   # Sprint 2
+│   │   │   │   ├── vendas/      # Sprint 2
+│   │   │   │   └── reunioes/    # Sprint 2
+│   │   │   ├── marketing/       # Sprint 3 (8 sub-rotas)
+│   │   │   ├── eventos/         # Sprint 4
+│   │   │   └── catalogo/
+│   │   │       ├── produtos/    # Sprint 1 ✓
+│   │   │       ├── canais/      # Sprint 2 placeholder
+│   │   │       └── eventos/     # Sprint 2 placeholder
+│   │   ├── globals.css          # @import "tailwindcss" + @theme inline
+│   │   ├── layout.tsx           # Geist font + Toaster
+│   │   └── page.tsx             # redirect /login
+│   ├── components/ui/           # shadcn 4 components (Base UI)
+│   ├── lib/
+│   │   ├── api.ts               # fetch wrapper {get,post,patch,delete}
+│   │   └── utils.ts
+│   ├── AGENTS.md                # aviso Next 16
+│   ├── CLAUDE.md                # @AGENTS.md
+│   ├── components.json
+│   └── package.json
+├── deploy/                      # Sprint 5
+├── data/                        # symlinks pras planilhas em /opt/dashcenat/data
+├── docker-compose.yml           # Postgres na porta 5442
+├── PROJECT_SPEC.md              # este arquivo
+├── CLAUDE.md                    # convenções pro Claude Code
+└── README.md
+```
+
+---
+
+## 3. Modelo de dados (estado real do banco)
+
+Postgres com três schemas: `core` (master data + auth), `mkt`, `comercial`.
+
+**Convenções comuns a todos os models:**
+- PK em UUID via `gen_random_uuid()` no servidor (helper `pk_uuid()` em `app/models/base.py`)
+- `criado_em` / `atualizado_em` em `TIMESTAMPTZ DEFAULT now()`
+- Colunas em **português** (decisão fechada — bate com terminologia das planilhas atuais)
+- Schema declarado via `__table_args__ = {"schema": "<nome>"}`
+- ENUMs declarados em escopo de módulo (não dentro do model)
+
+### 3.1 Schema `core` ✅ implementado no Sprint 1
+
+```sql
+-- core.users
+CREATE TABLE core.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  nome VARCHAR(255) NOT NULL,
+  senha_hash VARCHAR(255) NOT NULL,
+  ativo BOOLEAN DEFAULT TRUE,
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ENUM core.tipo_produto
+CREATE TYPE core.tipo_produto AS ENUM (
+  'pos_graduacao', 'curso_livre', 'congresso_online', 'congresso_presencial',
+  'comunidade', 'seminario_online', 'evento_online'
+);
+
+-- core.produtos
+CREATE TABLE core.produtos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo core.tipo_produto NOT NULL,
+  nome VARCHAR(255) NOT NULL,
+  turma VARCHAR(50),
+  codigo VARCHAR(50) UNIQUE,
+  ativo BOOLEAN DEFAULT TRUE,
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- core.canais
+CREATE TABLE core.canais (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome VARCHAR(100) NOT NULL,
+  slug VARCHAR(50) UNIQUE NOT NULL,
+  categoria VARCHAR(50),
+  ativo BOOLEAN DEFAULT TRUE
+);
+
+-- core.eventos
+CREATE TABLE core.eventos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome VARCHAR(255) NOT NULL,
+  produto_id UUID REFERENCES core.produtos(id),
+  meta_inscritos INT,
+  meta_receita NUMERIC(12,2),
+  valor_inscricao NUMERIC(10,2),
+  data_final DATE,
+  data_finalizacao TIMESTAMPTZ,
+  meta_cpl NUMERIC(10,2),
+  orcamento NUMERIC(12,2),
+  ativo BOOLEAN DEFAULT TRUE,
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.2 Schema `comercial` ✅ tabelas implementadas (sem dados, sem views, sem índices)
+
+```sql
+-- comercial.funil_etapas (catálogo fixo — seedado com 5 rows)
+CREATE TABLE comercial.funil_etapas (
+  id INT PRIMARY KEY,
+  codigo VARCHAR(30) UNIQUE NOT NULL,
+  nome VARCHAR(100) NOT NULL,
+  ordem INT NOT NULL
+);
+
+-- Seed (já aplicado):
+INSERT INTO comercial.funil_etapas (id, codigo, nome, ordem) VALUES
+  (1, 'leads',     'Leads Gerados',          1),
+  (2, 'ligacao',   'Ligação Qualificação',   2),
+  (3, 'sql',       'SQL / Reunião Agendada', 3),
+  (4, 'reuniao',   'Reunião Realizada',      4),
+  (5, 'venda',     'Aluno (Venda)',          5);
+
+-- comercial.funil_resultado
+CREATE TABLE comercial.funil_resultado (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  produto_id UUID NOT NULL REFERENCES core.produtos(id),
+  etapa_id INT NOT NULL REFERENCES comercial.funil_etapas(id),
+  ano INT NOT NULL,
+  mes INT NOT NULL CHECK (mes BETWEEN 1 AND 12),
+  meta NUMERIC(12,2),
+  resultado NUMERIC(12,2),
+  observacao TEXT,
+  usuario_id UUID REFERENCES core.users(id),
+  atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (produto_id, etapa_id, ano, mes)
+);
+
+-- comercial.vendas
+CREATE TABLE comercial.vendas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  produto_id UUID NOT NULL REFERENCES core.produtos(id),
+  aluno_nome VARCHAR(255) NOT NULL,
+  aluno_email VARCHAR(255),
+  data_venda DATE NOT NULL,
+  valor NUMERIC(12,2) NOT NULL,
+  prazo_recebimento_meses INT,
+  a_vista BOOLEAN DEFAULT FALSE,
+  vendedor VARCHAR(100),
+  observacao TEXT,
+  usuario_id UUID REFERENCES core.users(id),
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- comercial.reunioes
+CREATE TABLE comercial.reunioes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  produto_id UUID NOT NULL REFERENCES core.produtos(id),
+  aluno_nome VARCHAR(255),
+  aluno_email VARCHAR(255),
+  vendedor VARCHAR(100),
+  data_agendada DATE NOT NULL,
+  data_realizada DATE,
+  no_show BOOLEAN DEFAULT FALSE,
+  resultou_em_venda BOOLEAN DEFAULT FALSE,
+  observacao TEXT,
+  usuario_id UUID REFERENCES core.users(id),
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.3 Schema `mkt` ✅ tabelas implementadas (sem dados, sem views, sem índices, sem `cpl` GENERATED)
+
+```sql
+-- mkt.metricas_canal — tabela genérica que cobre TODOS os canais
+CREATE TABLE mkt.metricas_canal (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  canal_id UUID NOT NULL REFERENCES core.canais(id),
+  indicador VARCHAR(100) NOT NULL,    -- "leads", "cpl", "investimento", "ctr", "alcance", etc.
+  produto_id UUID REFERENCES core.produtos(id),  -- null = métrica não atrelada a produto
+  ano INT NOT NULL,
+  mes INT NOT NULL CHECK (mes BETWEEN 1 AND 12),
+  semana INT CHECK (semana BETWEEN 1 AND 5),     -- null = mensal
+  meta NUMERIC(14,4),
+  resultado NUMERIC(14,4),
+  meta_extra JSONB DEFAULT '{}'::jsonb,
+  observacao TEXT,
+  usuario_id UUID REFERENCES core.users(id),
+  criado_em TIMESTAMPTZ DEFAULT NOW(),
+  atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (canal_id, indicador, produto_id, ano, mes, semana)
+);
+
+-- mkt.leads_eventos
+-- NOTA: cpl NÃO é GENERATED column (decisão fechada — calcula em Python)
+CREATE TABLE mkt.leads_eventos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  evento_id UUID NOT NULL REFERENCES core.eventos(id),
+  canal_id UUID NOT NULL REFERENCES core.canais(id),
+  data DATE NOT NULL,
+  inscritos INT DEFAULT 0,
+  investimento NUMERIC(12,2) DEFAULT 0,
+  usuario_id UUID REFERENCES core.users(id),
+  criado_em TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (evento_id, canal_id, data)
+);
+
+-- mkt.inscricoes_evento
+CREATE TABLE mkt.inscricoes_evento (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  evento_id UUID NOT NULL REFERENCES core.eventos(id),
+  data_registro DATE NOT NULL,
+  inscritos INT DEFAULT 0,
+  valor_inscricao NUMERIC(10,2),
+  receita NUMERIC(12,2),
+  usuario_id UUID REFERENCES core.users(id),
+  criado_em TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (evento_id, data_registro)
+);
+```
+
+### 3.4 Pendências do schema (Sprint 2 cria)
+
+**Índices** (migration consolidada no Sprint 2):
+
+```sql
+CREATE INDEX idx_funil_periodo ON comercial.funil_resultado (ano, mes);
+CREATE INDEX idx_funil_produto ON comercial.funil_resultado (produto_id);
+CREATE INDEX idx_vendas_periodo ON comercial.vendas (data_venda);
+CREATE INDEX idx_vendas_produto ON comercial.vendas (produto_id);
+CREATE INDEX idx_reunioes_periodo ON comercial.reunioes (data_agendada);
+CREATE INDEX idx_metricas_periodo ON mkt.metricas_canal (ano, mes);
+CREATE INDEX idx_metricas_canal_indicador ON mkt.metricas_canal (canal_id, indicador);
+```
+
+**Views derivadas** (Sprint 2 cria):
+
+```sql
+-- comercial.v_taxa_conversao — pivota funil_resultado e calcula 5 taxas
+CREATE OR REPLACE VIEW comercial.v_taxa_conversao AS
+WITH pivoted AS (
+  SELECT
+    produto_id, ano, mes,
+    MAX(CASE WHEN etapa_id = 1 THEN resultado END) AS leads,
+    MAX(CASE WHEN etapa_id = 2 THEN resultado END) AS ligacao,
+    MAX(CASE WHEN etapa_id = 3 THEN resultado END) AS sql_reuniao,
+    MAX(CASE WHEN etapa_id = 4 THEN resultado END) AS reuniao_realizada,
+    MAX(CASE WHEN etapa_id = 5 THEN resultado END) AS venda
+  FROM comercial.funil_resultado
+  GROUP BY produto_id, ano, mes
+)
+SELECT
+  produto_id, ano, mes,
+  leads, ligacao, sql_reuniao, reuniao_realizada, venda,
+  CASE WHEN leads > 0 THEN ligacao / leads END AS taxa_lead_ligacao,
+  CASE WHEN ligacao > 0 THEN sql_reuniao / ligacao END AS taxa_ligacao_sql,
+  CASE WHEN sql_reuniao > 0 THEN reuniao_realizada / sql_reuniao END AS taxa_sql_reuniao,
+  CASE WHEN reuniao_realizada > 0 THEN venda / reuniao_realizada END AS taxa_reuniao_venda,
+  CASE WHEN leads > 0 THEN venda / leads END AS taxa_lead_venda
+FROM pivoted;
+
+-- comercial.v_ticket_medio — ticket médio mensal por produto (a partir de comercial.vendas)
+CREATE OR REPLACE VIEW comercial.v_ticket_medio AS
+SELECT
+  produto_id,
+  EXTRACT(YEAR FROM data_venda)::INT AS ano,
+  EXTRACT(MONTH FROM data_venda)::INT AS mes,
+  COUNT(*) AS qtd_vendas,
+  SUM(valor) AS receita_total,
+  AVG(valor) AS ticket_medio,
+  AVG(prazo_recebimento_meses) AS prazo_medio,
+  SUM(CASE WHEN a_vista THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) AS pct_a_vista
+FROM comercial.vendas
+GROUP BY produto_id, EXTRACT(YEAR FROM data_venda), EXTRACT(MONTH FROM data_venda);
+
+-- comercial.v_no_show — taxa de no-show mensal por produto
+CREATE OR REPLACE VIEW comercial.v_no_show AS
+SELECT
+  produto_id,
+  EXTRACT(YEAR FROM data_agendada)::INT AS ano,
+  EXTRACT(MONTH FROM data_agendada)::INT AS mes,
+  COUNT(*) AS reunioes_agendadas,
+  SUM(CASE WHEN no_show THEN 1 ELSE 0 END) AS no_shows,
+  SUM(CASE WHEN no_show THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) AS taxa_no_show,
+  SUM(CASE WHEN resultou_em_venda THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) AS taxa_reuniao_venda
+FROM comercial.reunioes
+GROUP BY produto_id, EXTRACT(YEAR FROM data_agendada), EXTRACT(MONTH FROM data_agendada);
+
+-- mkt.v_roi_evento — ROI consolidado por evento (Sprint 4 usa)
+CREATE OR REPLACE VIEW mkt.v_roi_evento AS
+SELECT
+  e.id AS evento_id, e.nome,
+  COALESCE(SUM(le.investimento), 0) AS investimento_total,
+  COALESCE(SUM(ie.receita), 0) AS receita_total,
+  COALESCE(SUM(ie.inscritos), 0) AS inscritos_totais,
+  CASE WHEN COALESCE(SUM(le.investimento), 0) > 0
+       THEN COALESCE(SUM(ie.receita), 0) / SUM(le.investimento) END AS roi
+FROM core.eventos e
+LEFT JOIN mkt.leads_eventos le ON le.evento_id = e.id
+LEFT JOIN mkt.inscricoes_evento ie ON ie.evento_id = e.id
+GROUP BY e.id, e.nome;
+```
+
+### 3.5 Consolidação de schemas (Sprint 2 corrige)
+
+Estado real atual: `CREATE SCHEMA IF NOT EXISTS` aparece em **3 lugares** redundantes (`alembic/env.py`, `app/main.py` lifespan, `app/etl/seed.py`). A migration inicial (`a5391192c53d`) **não cria** os schemas.
+
+**Sprint 2 ajusta:** edita a migration inicial pra adicionar `op.execute("CREATE SCHEMA IF NOT EXISTS ...")` no início de `upgrade()`, e remove dos 3 lugares paralelos.
+
+---
+
+## 4. Endpoints da API
+
+Padrão: `/api/v1/<recurso>`. Todas as rotas autenticadas via `Authorization: Bearer <token>` exceto `/auth/login` e `/health`.
+
+> **Nota:** o plano original previa namespace `/api/v1/catalogo/produtos`. A implementação real achatou em `/api/v1/produtos`. Mantemos o achatado — convenção atual e frontend já consome.
+
+### 4.1 Auth ✅ implementado
+- `POST /api/v1/auth/login` → `{access_token, token_type, user}`
+- `GET /api/v1/auth/me` → `UserOut`
+
+### 4.2 Catálogo ✅ implementado (parcial)
+- `GET /api/v1/produtos?tipo=&ativo=`
+- `POST /api/v1/produtos`
+- `PATCH /api/v1/produtos/{id}`
+- `GET /api/v1/canais`
+- `POST /api/v1/canais`
+- `GET /api/v1/eventos?ativo=`
+- `POST /api/v1/eventos`
+- `PATCH /api/v1/eventos/{id}`
+
+**Faltam (Sprint 2 adiciona):**
+- `PATCH /api/v1/canais/{id}` (ativar/desativar)
+- Tratamento de 409 Conflict em codigo/slug duplicados
+
+### 4.3 Comercial (Sprint 2)
+
+```
+GET  /api/v1/comercial/funil/etapas
+GET  /api/v1/comercial/funil/resultados?produto_id=&ano=&mes=
+POST /api/v1/comercial/funil/resultados              # upsert único
+POST /api/v1/comercial/funil/resultados/bulk         # mês inteiro de 1 produto
+GET  /api/v1/comercial/vendas?produto_id=&data_inicio=&data_fim=&vendedor=
+POST /api/v1/comercial/vendas
+PATCH /api/v1/comercial/vendas/{id}
+GET  /api/v1/comercial/reunioes?produto_id=&data_inicio=&data_fim=&status=
+POST /api/v1/comercial/reunioes
+PATCH /api/v1/comercial/reunioes/{id}                # marcar realizada / no-show / venda
+
+# Dashboards (consultam views derivadas)
+GET  /api/v1/comercial/dashboard/funil?ano=&mes=&produto_id=
+GET  /api/v1/comercial/dashboard/conversao?produto_id=&ano=
+GET  /api/v1/comercial/dashboard/produtos?ano=&mes=  # ranking pós × receita
+```
+
+### 4.4 Marketing (Sprint 3)
+
+```
+GET  /api/v1/mkt/metricas?canal_id=&produto_id=&ano=&mes=&indicador=
+POST /api/v1/mkt/metricas                            # upsert
+POST /api/v1/mkt/metricas/bulk                       # mês inteiro de 1 canal
+GET  /api/v1/mkt/leads-eventos?evento_id=&data_inicio=&data_fim=
+POST /api/v1/mkt/leads-eventos
+GET  /api/v1/mkt/inscricoes-evento?evento_id=
+POST /api/v1/mkt/inscricoes-evento
+
+# Dashboards
+GET  /api/v1/mkt/dashboard/canal/{slug}?ano=&mes=
+GET  /api/v1/mkt/dashboard/eventos/{evento_id}       # ROI + evolução diária
+```
+
+### 4.5 Overview (Sprint 5)
+
+```
+GET  /api/v1/overview?ano=&mes=
+```
+
+Retorna KPIs consolidados: receita, leads, vendas, % atingimento de meta, comparativo MoM, top 3 pós, funil agregado, ROI médio dos eventos.
+
+---
+
+## 5. Frontend — telas
+
+Sidebar atual já tem todos os links. Páginas placeholder ("Em construção") são criadas no Sprint 2 pra evitar 404 ao clicar.
+
+### 5.1 Implementadas ✅
+- `/login` — form email + senha
+- `/overview` — placeholder (real em Sprint 5)
+- `/catalogo/produtos` — lista + criação + edit + toggle ativar
+
+### 5.2 Sprint 2 — Comercial
+
+**`/comercial/funil`:** seletor de produto (ou "todos"), `FunnelChart` Recharts vertical com 5 etapas, tabela lateral (Etapa | Meta | Resultado | % Meta | Δ vs mês anterior), card com 5 taxas de conversão.
+
+**`/comercial/preencher`:** grade matricial — colunas = etapas (5), linhas = pós-graduações ativas. Dois inputs por célula (Meta + Resultado). Botão "Salvar mês inteiro" → POST bulk.
+
+**`/comercial/vendas`:** tabela com Data/Aluno/Pós/Valor/Prazo/À Vista/Vendedor. Filtros (produto, mês, vendedor). Botão "Nova venda" abre Dialog. Cards no topo: Ticket Médio, % à Vista, Prazo Médio.
+
+**`/comercial/reunioes`:** tabela com Data Agendada/Aluno/Pós/Vendedor/Status. Filtros + Cards (Total, % No-Show, Taxa Reunião → Venda). Edição inline pra marcar realizada/no-show/venda.
+
+### 5.3 Sprint 2 — Placeholders criados (resolverão 404)
+
+Cada um é uma página simples "Em construção — Sprint X":
+- `/catalogo/canais`, `/catalogo/eventos` (Sprint 2)
+- `/marketing/{trafego-pago,redes-sociais,youtube,podcast,blog,email,landing-pages,seo}` (Sprint 3)
+- `/eventos` (Sprint 4)
+
+### 5.4 Sprint 3 — Marketing (uma tela por canal)
+
+**Tráfego Pago** — Leads, CPL, Investimento, ROI; gráfico evolução mensal Meta vs Resultado por indicador; tabela detalhada do mês; botão "Preencher".
+**Redes Sociais (Instagram)** — Contas Engajadas, Alcance, Seguidores, Cliques no link.
+**YouTube** — Views, Inscritos novos, Tempo médio, Taxa de retenção.
+**Podcast** — Plays, Episódios publicados, Seguidores Spotify.
+**Blog** — Sessões, Leads, Tempo médio na página, % bounce.
+**Email** — CTR, Taxa de abertura, Lista, Descadastros.
+**Landing Pages** — Visitantes, Taxa conversão, Leads.
+\
+
+
+
+**SEO** — Posições top 10, Cliques GSC, Impressões, CTR orgânico.
+
+`/marketing/preencher/[canal]` — form dinâmico baseado nos indicadores do canal. Toggle mensal/semanal. Bulk save.
+
+### 5.5 Sprint 4 — Eventos
+
+`/eventos` — lista com cards: Nome, % atingimento meta inscritos, % atingimento receita, dias restantes.
+`/eventos/[id]` — dashboard do evento: meta vs realizado, ROI, evolução diária de leads (linha empilhada por canal), breakdown CPL.
+`/eventos/[id]/preencher` — form diário (data, canal, leads, investimento, inscritos, receita).
+
+### 5.6 Sprint 5 — Overview
+
+Tela inicial consolidada: 4 KPI cards (Receita, Leads, Vendas, % Atingimento), mini-funil agregado, evolução receita 12 meses, top 5 pós, comparativo MoM.
+
+---
+
+## 6. ETL one-shot (importação histórica)
+
+### 6.1 Sprint 2 — comercial
+
+**Comando:**
+```bash
+cd backend
+uv run python -m app.etl.parsers.comercial \
+  --planilha /opt/dashcenat/data/DASH_Processo_Seletivo_2026.xlsx \
+  --ano 2026
+```
+
+**Mapeamento `DASH_Processo_Seletivo_2026.xlsx`:**
+
+| Aba | Destino | Estratégia |
+|---|---|---|
+| `Janeiro` | `comercial.funil_resultado` (mes=1) | parsing dos 5 blocos: Leads Gerados, Ligação Qualificação, SQL/Reunião, Reunião Realizada, Alunos-Vendas. Cada bloco tem 3 linhas (Meta, Resultado, % de Meta). N produtos por coluna. |
+| `Fevereiro` | mes=2 | idem |
+| `Março` | mes=3 | idem |
+| `Abril` | mes=4 | idem |
+| `Maio` | mes=5 | idem |
+| `Vem para o CENAT` | (ignorar — sorteio cupons) | — |
+| `Supervisão - Campanha Abril` | (ignorar — lista de inscritos) | — |
+| `TRIMESTRE` | (validação cruzada — soma deveria bater com funil) | — |
+
+**Cuidados:**
+- **Idempotência:** UNIQUE `(produto_id, etapa_id, ano, mes)` na tabela. Usar UPSERT (`ON CONFLICT DO UPDATE`).
+- **Resolução de produto:** parser lê o cabeçalho da coluna (ex: "POS BP 5", "Infanto T5") e busca `core.produtos` por nome aproximado. Se não achar, **não cria automático** — registra warning e pula.
+- **Valores `#REF!`, `#DIV/0!`, vazio:** viram `NULL`.
+- **Logging:** terminal mostra cada aba processada, linhas inseridas, linhas com warning.
+
+**Não importa neste Sprint:**
+- `comercial.vendas` (planilha tem só agregado mensal de receita, não vendas individuais)
+- `comercial.reunioes` (não há dado granular)
+- Métricas auxiliares como ticket médio, % à vista, no-show, prazo (são derivadas)
+
+### 6.2 Sprint 3 — marketing (mapeamento — apenas referência)
+
+| Aba | Destino |
+|---|---|
+| `Eventos` | `core.eventos` |
+| `Produtos` | `core.produtos` (já existe; UPSERT por nome) |
+| `Lista_Canais` | `core.canais` (já existe; UPSERT por slug) |
+| `Metas` | `mkt.metricas_canal` (1 row × N indicadores) |
+| `Resultados` | `mkt.metricas_canal` (wide → long) |
+| `InscriçõesEventos` | `mkt.inscricoes_evento` |
+| `LeadsEventos` | `mkt.leads_eventos` |
+| `Tráfego` | `mkt.metricas_canal` (canal=trafego_pago) |
+| `Redes Sociais` | `mkt.metricas_canal` (canal=instagram) |
+| `Blog` / `Podcast` / `Youtube` / `E-mail` / `Páginas` / `Design` | idem por canal |
+| `Curso Livre` / `Lançamento` | idem |
+| `Como usar` / `Configuracao_Canais` | (ignorar) |
+
+---
+
+## 7. Decisões fechadas (não reabrir sem motivo forte)
+
+1. **Single-tenant CENAT.** Sem multi-tenancy.
+2. **Login compartilhado.** Sem RBAC, sem roles. Todos veem e editam tudo.
+3. **Stack frontend Next 16 + React 19 + TW 4 + shadcn 4 (Base UI).** Confirmado pós-auditoria Sprint 1. **Não reverter.**
+4. **Tabela `mkt.metricas_canal` genérica.** Indicadores em `VARCHAR` + `meta_extra JSONB`. Não criar tabela por canal.
+5. **Funil fixo de 5 etapas.** Lead → Ligação → SQL → Reunião → Venda. Codificado como seed em `comercial.funil_etapas`.
+6. **Postgres em Docker isolado.** Porta 5442. Em Sprint 5 reavalia se migra pra host.
+7. **Recharts** como lib de gráfico. Compatível com React 19 a partir da 2.13+.
+8. **Subdomínio:** `dash.cenatdata.online`.
+9. **Colunas em português.** Bate com terminologia das planilhas atuais.
+10. **`leads_eventos.cpl` calculado em Python** (service layer), não GENERATED column.
+11. **Senha admin:** `trocar123`. Endpoint pra trocar fica pendente (Sprint 5 ou conforme demanda).
+12. **JWT_EXPIRE_MIN = 480** (8 horas). Decidido por Claude Code no Sprint 1; mantido.
+13. **Endpoints achatados** em `/api/v1/<recurso>`, não `/api/v1/catalogo/<recurso>`.
+
+---
+
+## 8. Regra de marca CENAT
+
+🚫 **NUNCA usar ícones de cérebro em qualquer parte da aplicação** (sidebar, dashboards, ilustrações de overview, placeholders). Regra rígida da marca CENAT, aplicada em todos os ativos. lucide-react `Brain`, `BrainCircuit`, `BrainCog` e variantes — proibidos.
+
+Alternativas pra contextos onde "ícone de inteligência/cognição" faria sentido: `Lightbulb`, `Sparkles`, `Activity`, `Heart`, `Target`.
+
+---
+
+## 9. Roadmap em sprints
+
+| Sprint | Status | Entrega |
+|---|---|---|
+| **1 — Fundação** | ✅ entregue (com divergências documentadas) | Auth + catálogo + frontend mínimo |
+| **2 — Comercial + Fundação corretiva** | ⏳ próximo | Migration consolidada (CREATE SCHEMA + índices + views) + 14 placeholders + endpoints comercial + ETL DASH_*.xlsx + 4 telas comerciais |
+| **3 — Marketing** | ⏳ | `mkt.metricas_canal` endpoints + 8 telas + ETL Sistema_Marketing |
+| **4 — Eventos** | ⏳ | Lista + dashboard ROI + form diário + ETL eventos |
+| **5 — Overview + Deploy** | ⏳ | Tela consolidada + systemd + nginx + SSL + endpoint trocar senha |
+
+---
+
+## 10. Roadmap pós-MVP (fase 2)
+
+- **Meta Ads API** (Graph API direto ou via `pipeboard-co/meta-ads-mcp`) — popular `mkt.metricas_canal` e `mkt.leads_eventos` automaticamente.
+- **Google Analytics 4** — sessões, conversões, fontes de tráfego do blog/LP.
+- **Mailchimp/Brevo/RD Station** — CTR, lista, taxa de abertura.
+- **Spotify for Podcasters** — plays, seguidores.
+- **Notificações automáticas** (Slack/email) quando meta cair abaixo de X% no meio do mês.
+- **Histórico de mudanças** (auditoria por linha alterada).
+- **Endpoint pra trocar senha** + recuperação por email.
