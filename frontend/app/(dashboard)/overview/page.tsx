@@ -25,7 +25,7 @@ const RECEITAS = [
   { label: "Pós-Graduação",   valor: "R$ 635.083", meta: "158 alunos · 79,1%", desc: "125 vendas · ticket R$ 5.080", icon: GraduationCap, gradient: "bg-gradient-to-br from-blue-600 to-blue-800" },
   { label: "Congressos",      valor: "R$ 104.833", meta: "R$ 206.664 · 50,7%", desc: "529 inscritos · 5 eventos",     icon: Calendar,       gradient: "bg-gradient-to-br from-violet-600 to-purple-800" },
   { label: "Comunidade",      valor: "R$ 28.220",  meta: "Sem meta",            desc: "93 vendas Hotmart",             icon: Users,          gradient: "bg-gradient-to-br from-fuchsia-600 to-pink-700" },
-  { label: "Imersão Abril",   valor: "R$ 27.716",  meta: "R$ 43.695 · 63,4%",   desc: "5.950 leads · 125 MQLs",        icon: Zap,            gradient: "bg-gradient-to-br from-amber-500 to-orange-700" },
+  { label: "Imersão Abril",   valor: "5.950 leads",  meta: "Meta 15.000 · 39,7%",   desc: "125 MQLs · CPL R$ 3,06",        icon: Zap,            gradient: "bg-gradient-to-br from-amber-500 to-orange-700" },
   { label: "Cursos Livres",   valor: "R$ 6.499",   meta: "R$ 58.200 · 11,2%",   desc: "67 alunos · CPA R$ 31",         icon: Award,          gradient: "bg-gradient-to-br from-rose-500 to-red-700" },
   { label: "Intercâmbio",     valor: "R$ 2.600",   meta: "Sem meta",            desc: "Receita complementar",          icon: Globe2,         gradient: "bg-gradient-to-br from-teal-500 to-emerald-700" },
 ];
