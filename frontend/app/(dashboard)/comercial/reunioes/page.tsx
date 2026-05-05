@@ -14,9 +14,12 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ChartCard } from "@/components/dashboard/chart-card";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { api, ApiError } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { CalendarCheck, UserX, Trophy, Plus } from "lucide-react";
 
 interface Produto { id: string; nome: string; }
 interface Reuniao {
@@ -133,10 +136,9 @@ export default function ReunioesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Reuniões</h1>
-        <div className="flex gap-2 items-center">
+    <div className="space-y-6" data-density="medium">
+      <div className="flex items-center justify-end flex-wrap gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           <Select value={filtroProduto} onValueChange={(v) => setFiltroProduto(v ?? "todos")}>
             <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -157,7 +159,7 @@ export default function ReunioesPage() {
             </SelectContent>
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger render={<Button />}>Nova Reunião</DialogTrigger>
+            <DialogTrigger render={<Button />}><Plus className="w-4 h-4 mr-1" />Nova Reunião</DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Nova Reunião</DialogTitle></DialogHeader>
               <form onSubmit={handleCreate} className="space-y-3">
@@ -198,24 +200,28 @@ export default function ReunioesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Reuniões Agendadas</p>
-          <p className="text-2xl font-bold">{agg.agendadas}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {agg.realizadas} realizada(s) · {agg.vendas} venda(s)
-          </p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">% No-Show</p>
-          <p className="text-2xl font-bold">{pct(taxaNoShow)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Taxa Reunião → Venda</p>
-          <p className="text-2xl font-bold">{pct(taxaVenda)}</p>
-        </Card>
+        <KPICard
+          label="Reuniões Agendadas"
+          value={agg.agendadas}
+          previousValue={`${agg.realizadas} realizada(s) · ${agg.vendas} venda(s)`}
+          icon={CalendarCheck}
+          index={0}
+        />
+        <KPICard
+          label="% No-Show"
+          value={pct(taxaNoShow)}
+          icon={UserX}
+          index={1}
+        />
+        <KPICard
+          label="Taxa Reunião → Venda"
+          value={pct(taxaVenda)}
+          icon={Trophy}
+          index={2}
+        />
       </div>
 
-      <Card>
+      <ChartCard title="Reuniões agendadas" description={`${MESES[mes-1]} ${ano}`}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -268,7 +274,7 @@ export default function ReunioesPage() {
             })}
           </TableBody>
         </Table>
-      </Card>
+      </ChartCard>
     </div>
   );
 }

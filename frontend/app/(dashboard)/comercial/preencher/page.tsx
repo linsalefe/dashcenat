@@ -3,9 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChartCard } from "@/components/dashboard/chart-card";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { api, ApiError } from "@/lib/api";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Package, ClipboardCheck, Save } from "lucide-react";
 
 interface Produto { id: string; nome: string; tipo: string; }
 interface Etapa { id: number; codigo: string; nome: string; ordem: number; }
@@ -98,60 +101,79 @@ export default function PreencherPage() {
     }
   }
 
+  const stats = useMemo(() => {
+    const totalCells = produtos.length * etapas.length * 2;
+    let preenchidas = 0;
+    for (const p of produtos) {
+      for (const e of etapas) {
+        const c = cells[p.id]?.[e.id];
+        if (c?.meta) preenchidas++;
+        if (c?.resultado) preenchidas++;
+      }
+    }
+    const pctPreenchido = totalCells > 0 ? Math.round((preenchidas / totalCells) * 100) : 0;
+    return { totalProdutos: produtos.length, preenchidas, pctPreenchido };
+  }, [produtos, etapas, cells]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Preencher Funil</h1>
-        <div className="flex gap-2 items-center">
-          <Select value={String(mes)} onValueChange={(v) => setMes(Number(v ?? MES_ATUAL))}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={String(ano)} onValueChange={(v) => setAno(Number(v ?? ANO_ATUAL))}>
-            <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[ANO_ATUAL-1, ANO_ATUAL, ANO_ATUAL+1].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button onClick={handleSave} disabled={saving || loading}>
-            {saving ? "Salvando..." : "Salvar mês inteiro"}
-          </Button>
-        </div>
+    <div className="space-y-6" data-density="medium">
+      {/* Filtros */}
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        <Select value={String(mes)} onValueChange={(v) => setMes(Number(v ?? MES_ATUAL))}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={String(ano)} onValueChange={(v) => setAno(Number(v ?? ANO_ATUAL))}>
+          <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {[ANO_ATUAL-1, ANO_ATUAL, ANO_ATUAL+1].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button onClick={handleSave} disabled={saving || loading}>
+          <Save className="w-4 h-4 mr-2" />
+          {saving ? "Salvando..." : "Salvar mês inteiro"}
+        </Button>
       </div>
 
-      {loading ? (
-        <div className="text-center text-muted-foreground py-12">Carregando...</div>
-      ) : (
-        <div className="overflow-x-auto bg-white border rounded-lg">
+      {/* KPIs progresso */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard label="Produtos ativos" value={stats.totalProdutos} icon={Package} loading={loading} index={0} />
+        <KPICard label="Células preenchidas" value={stats.preenchidas} icon={ClipboardCheck} loading={loading} index={1} />
+        <KPICard label="% preenchimento" value={`${stats.pctPreenchido}%`} icon={ClipboardCheck} loading={loading} index={2} />
+      </div>
+
+      {/* Grade matricial */}
+      <ChartCard title="Grade Matricial — Meta × Resultado" description={`${MESES[mes-1]} ${ano}`} loading={loading}>
+        <div className="overflow-x-auto -mx-4 -mb-4">
           <table className="w-full text-sm">
-            <thead className="bg-zinc-50">
+            <thead className="bg-muted/30">
               <tr>
-                <th className="text-left p-3 font-semibold sticky left-0 bg-zinc-50">Produto</th>
+                <th className="text-left p-3 font-semibold sticky left-0 bg-muted/30">Produto</th>
                 {etapas.map((e) => (
-                  <th key={e.id} className="text-center p-3 font-semibold border-l" colSpan={2}>{e.nome}</th>
+                  <th key={e.id} className="text-center p-3 font-semibold border-l border-border" colSpan={2}>{e.nome}</th>
                 ))}
               </tr>
-              <tr className="text-xs text-muted-foreground">
-                <th className="p-2 sticky left-0 bg-zinc-50"></th>
+              <tr className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                <th className="p-2 sticky left-0 bg-muted/30"></th>
                 {etapas.map((e) => (
                   <Fragment key={e.id}>
-                    <th className="p-2 border-l">Meta</th>
-                    <th className="p-2">Result.</th>
+                    <th className="p-2 border-l border-border font-medium">Meta</th>
+                    <th className="p-2 font-medium">Result.</th>
                   </Fragment>
                 ))}
               </tr>
             </thead>
             <tbody>
               {produtos.map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="p-2 font-medium sticky left-0 bg-white">{p.nome}</td>
+                <tr key={p.id} className="border-t border-border hover:bg-muted/20 transition-colors">
+                  <td className="p-2 font-medium sticky left-0 bg-card">{p.nome}</td>
                   {etapas.map((e) => {
                     const cell = cells[p.id]?.[e.id] ?? { meta: "", resultado: "" };
                     return (
                       <Fragment key={e.id}>
-                        <td className="p-1 border-l">
+                        <td className="p-1 border-l border-border">
                           <Input
                             type="number" step="0.01" inputMode="decimal"
                             value={cell.meta}
@@ -175,7 +197,7 @@ export default function PreencherPage() {
             </tbody>
           </table>
         </div>
-      )}
+      </ChartCard>
     </div>
   );
 }

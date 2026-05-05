@@ -26,8 +26,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ChartCard } from "@/components/dashboard/chart-card";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { api, ApiError } from "@/lib/api";
 import { toast } from "sonner";
+import { Package, Plus } from "lucide-react";
 
 interface Produto {
   id: string;
@@ -141,14 +144,14 @@ export default function ProdutosPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Produtos</h1>
+    <div className="space-y-6" data-density="medium">
+      <div className="flex items-center justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger
             render={<Button />}
             onClick={openCreate}
           >
+            <Plus className="w-4 h-4 mr-1" />
             Novo Produto
           </DialogTrigger>
           <DialogContent>
@@ -210,7 +213,31 @@ export default function ProdutosPage() {
         </Dialog>
       </div>
 
-      <div className="rounded-lg border bg-white">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard
+          label="Produtos ativos"
+          value={produtos.filter((p) => p.ativo).length}
+          icon={Package}
+          loading={loading}
+          index={0}
+        />
+        <KPICard
+          label="Total cadastrados"
+          value={produtos.length}
+          icon={Package}
+          loading={loading}
+          index={1}
+        />
+        <KPICard
+          label="Tipos diferentes"
+          value={new Set(produtos.map((p) => p.tipo)).size}
+          icon={Package}
+          loading={loading}
+          index={2}
+        />
+      </div>
+
+      <ChartCard title="Catálogo de produtos" loading={loading}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -276,7 +303,7 @@ export default function ProdutosPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </ChartCard>
     </div>
   );
 }
