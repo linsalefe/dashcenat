@@ -1,230 +1,394 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  GraduationCap, Calendar, Users, Zap, Award, Globe2,
-  TrendingUp, DollarSign, Target, Eye, MousePointerClick,
+  GraduationCap,
+  Calendar,
+  Users,
+  Zap,
+  Award,
+  Globe2,
+  TrendingUp,
+  DollarSign,
+  Target,
+  Eye,
+  MousePointerClick,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
 } from "recharts";
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ReceitaCard } from "@/components/overview/receita-card";
 import { FunilCone3D } from "@/components/overview/funil-cone-3d";
-import { DonutChart } from "@/components/overview/donut-chart";
+import { api } from "@/lib/api";
 
-/* ════════════════════════════════════════════════
-   DADOS · ABRIL 2026 — Hardcoded para apresentação
-   ════════════════════════════════════════════════ */
+const FRENTES_VISUAL: Record<
+  string,
+  { icon: typeof GraduationCap; gradient: string }
+> = {
+  "Pós-Graduação": {
+    icon: GraduationCap,
+    gradient: "bg-gradient-to-br from-blue-600 to-blue-800",
+  },
+  Congressos: {
+    icon: Calendar,
+    gradient: "bg-gradient-to-br from-violet-600 to-purple-800",
+  },
+  Comunidade: {
+    icon: Users,
+    gradient: "bg-gradient-to-br from-fuchsia-600 to-pink-700",
+  },
+  Imersão: {
+    icon: Zap,
+    gradient: "bg-gradient-to-br from-amber-500 to-orange-700",
+  },
+  "Cursos Livres": {
+    icon: Award,
+    gradient: "bg-gradient-to-br from-rose-500 to-red-700",
+  },
+  Intercâmbio: {
+    icon: Globe2,
+    gradient: "bg-gradient-to-br from-teal-500 to-emerald-700",
+  },
+};
 
-const RECEITAS = [
-  { label: "Pós-Graduação",   valor: "R$ 635.083", meta: "158 alunos · 79,1%", desc: "125 vendas · ticket R$ 5.080", icon: GraduationCap, gradient: "bg-gradient-to-br from-blue-600 to-blue-800" },
-  { label: "Congressos",      valor: "R$ 104.833", meta: "R$ 206.664 · 50,7%", desc: "529 inscritos · 5 eventos",     icon: Calendar,       gradient: "bg-gradient-to-br from-violet-600 to-purple-800" },
-  { label: "Comunidade",      valor: "R$ 28.220",  meta: "Sem meta",            desc: "93 vendas Hotmart",             icon: Users,          gradient: "bg-gradient-to-br from-fuchsia-600 to-pink-700" },
-  { label: "Imersão Abril",   valor: "5.950 leads",  meta: "Meta 15.000 · 39,7%",   desc: "125 MQLs · CPL R$ 3,06",        icon: Zap,            gradient: "bg-gradient-to-br from-amber-500 to-orange-700" },
-  { label: "Cursos Livres",   valor: "R$ 6.499",   meta: "R$ 58.200 · 11,2%",   desc: "67 alunos · CPA R$ 31",         icon: Award,          gradient: "bg-gradient-to-br from-rose-500 to-red-700" },
-  { label: "Intercâmbio",     valor: "R$ 2.600",   meta: "Sem meta",            desc: "Receita complementar",          icon: Globe2,         gradient: "bg-gradient-to-br from-teal-500 to-emerald-700" },
+const MESES = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
-const DIST_META = [
-  { label: "Captação Pós",            value: 24500, color: "#3b82f6" },
-  { label: "[VENDAS] Conversão",      value: 15252, color: "#10b981" },
-  { label: "Imersão / Lançamento",    value: 7295,  color: "#f59e0b" },
-  { label: "Outros (testes, alcance)", value: 8049, color: "#94a3b8" },
-];
+const ANO_ATUAL = new Date().getFullYear();
 
-const ORIGEM_LEADS = [
-  { label: "Tráfego Pago",    value: 5175, color: "#3b82f6" },
-  { label: "Orgânico",        value: 1050, color: "#10b981" },
-  { label: "Direto / Outros", value: 470,  color: "#f59e0b" },
-];
+interface Overview {
+  ano: number;
+  mes: number;
+  has_data: boolean;
+  receita_total: number;
+  roas_bruto: number | null;
+  frentes: {
+    label: string;
+    valor: number;
+    quantidade: number;
+    detalhe: string | null;
+  }[];
+  funil_comercial: {
+    nome: string;
+    resultado: number;
+    meta: number | null;
+    taxa_anterior: number | null;
+  }[];
+  funil_taxas: Record<string, number>;
+  meta_ads: {
+    investimento: number;
+    impressoes: number;
+    alcance: number;
+    cliques: number;
+    ctr: number | null;
+    cpm: number | null;
+    cpc: number | null;
+    leads: number;
+    leads_imersao: number;
+    compras_pixel: number;
+    receita_pixel: number;
+    roas_pixel: number | null;
+    n_campanhas: number;
+  } | null;
+  top_campanhas: {
+    nome: string;
+    investimento: number;
+    receita: number;
+    roas: number;
+  }[];
+  top_eventos: { nome: string; inscritos: number; receita: number }[];
+  imersao: {
+    nome: string;
+    investimento_resultado: number | null;
+    receita_resultado: number | null;
+    leads_total: number;
+    leads_organico: number;
+    leads_pago: number;
+    cpl_resultado: number | null;
+    mqls_resultado: number | null;
+    engajamento: Record<string, unknown>;
+  } | null;
+}
 
-const CAT_PRODUTO = [
-  { label: "Pós-Graduação",   value: 635083, color: "#1d4ed8" },
-  { label: "Congressos",      value: 104833, color: "#7c3aed" },
-  { label: "Comunidade",      value: 28220,  color: "#db2777" },
-  { label: "Imersão",         value: 27716,  color: "#d97706" },
-  { label: "Cursos + Outros", value: 9099,   color: "#94a3b8" },
-];
+const fmtBRL = (v: number) =>
+  `R$ ${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 
-const TOP_CAMPANHAS = [
-  { nome: "Comunidade Promo",          invest: 9021, receita: 29800, roas: 3.30 },
-  { nome: "Congresso Online BP",       invest: 3207, receita: 12551, roas: 3.91 },
-  { nome: "Cong. Infanto Fortaleza#3", invest: 1113, receita: 7268,  roas: 6.53 },
-  { nome: "Cong. Infanto Fortaleza",   invest: 1181, receita: 6652,  roas: 5.63 },
-  { nome: "Congresso Rio Mar",         invest: 391,  receita: 6565,  roas: 16.77 },
-];
+interface PeriodoSelectorProps {
+  ano: number;
+  mes: number;
+  setAno: (n: number) => void;
+  setMes: (n: number) => void;
+}
 
-const TOP_EVENTOS = [
-  { nome: "VIII Infantojuvenil — Fortaleza/CE",   inscritos: 117, receita: 34086 },
-  { nome: "VI Boas Práticas — Belém/PA",          inscritos: 104, receita: 19463 },
-  { nome: "VII Saúde Mental — Pop. Vulnerab.",    inscritos: 93,  receita: 17827 },
-  { nome: "IX Internacional — IPUB/UFRJ",         inscritos: 62,  receita: 16730 },
-  { nome: "VII Online Boas Práticas",             inscritos: 153, receita: 16727 },
-];
-
-const FUNIL = [
-  { etapa: "Leads",    resultado: 745, meta: 670 },
-  { etapa: "Ligações", resultado: 266, meta: 375 },
-  { etapa: "SQL",      resultado: 168, meta: 275 },
-  { etapa: "Reuniões", resultado: 143, meta: 228 },
-  { etapa: "Vendas",   resultado: 125, meta: 158 },
-];
-
-const TAXAS = [
-  { de: "Lead",    para: "Ligação", pct: 35.7 },
-  { de: "Ligação", para: "SQL",     pct: 63.2 },
-  { de: "SQL",     para: "Reunião", pct: 85.1 },
-  { de: "Reunião", para: "Venda",   pct: 87.4 },
-  { de: "Lead",    para: "Venda",   pct: 16.8 },
-];
-
-/* ════════════════════════════════════════════════
-   PÁGINA
-   ════════════════════════════════════════════════ */
+function PeriodoSelector({ ano, mes, setAno, setMes }: PeriodoSelectorProps) {
+  return (
+    <div className="flex items-center gap-3">
+      <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+        <SelectTrigger className="w-[160px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MESES.map((m, i) => (
+            <SelectItem key={i + 1} value={String(i + 1)}>
+              {m}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={String(ano)} onValueChange={(v) => setAno(Number(v))}>
+        <SelectTrigger className="w-[100px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {[ANO_ATUAL - 1, ANO_ATUAL, ANO_ATUAL + 1].map((y) => (
+            <SelectItem key={y} value={String(y)}>
+              {y}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 export default function OverviewPage() {
+  const [ano, setAno] = useState(ANO_ATUAL);
+  const [mes, setMes] = useState(4);
+  const [data, setData] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api
+      .get<Overview>(`/overview?ano=${ano}&mes=${mes}`)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [ano, mes]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data || !data.has_data) {
+    return (
+      <div className="space-y-6">
+        <PeriodoSelector ano={ano} mes={mes} setAno={setAno} setMes={setMes} />
+        <Card className="p-12 text-center">
+          <Sparkles className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
+          <h2 className="text-xl font-bold mb-1">Sem dados pro período</h2>
+          <p className="text-sm text-muted-foreground">
+            Importe os XLSX em <strong>/configuracoes/import</strong> ou cadastre os
+            lançamentos em <strong>/marketing/lancamentos</strong>.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-12 -mt-2 pb-8" data-density="medium">
+      <PeriodoSelector ano={ano} mes={mes} setAno={setAno} setMes={setMes} />
 
-      {/* ════════ HERO ════════ */}
+      {/* HERO */}
       <motion.section
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.7 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 p-8 lg:p-12 text-white"
       >
-        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-blue-500/20 rounded-full blur-3xl pointer-events-none"/>
-        <div className="absolute -bottom-1/3 -left-1/4 w-[500px] h-[500px] bg-violet-500/15 rounded-full blur-3xl pointer-events-none"/>
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: "linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}/>
+        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-1/3 -left-1/4 w-[500px] h-[500px] bg-violet-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
           <div className="lg:col-span-2">
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-4 h-4 text-blue-300" />
               <span className="text-[11px] uppercase tracking-[0.2em] text-blue-200 font-semibold">
-                Resultados · Abril 2026
+                Resultados · {MESES[mes - 1]} {ano}
               </span>
-            </motion.div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className="text-6xl lg:text-7xl xl:text-8xl font-black tracking-tighter leading-none mb-3"
-            >
-              R$ <AnimatedNumber value={804951} duration={1500} />
-            </motion.h1>
-
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-              className="text-blue-200/80 text-base lg:text-lg max-w-xl leading-relaxed">
-              Receita total bruta do mês entre <strong className="text-white">6 frentes ativas</strong>:
-              pós-graduação, congressos, comunidade, lançamento Imersão, cursos livres e intercâmbio.
-            </motion.p>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
-              className="flex flex-wrap gap-2 mt-6">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-semibold">
-                <TrendingUp className="w-3 h-3" /> ROAS bruto 14,61×
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold">
-                <Target className="w-3 h-3" /> Lead → Venda 16,8%
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/20 border border-violet-400/30 text-violet-200 text-xs font-semibold">
-                <Sparkles className="w-3 h-3" /> 745 leads (+11% acima da meta)
-              </span>
-            </motion.div>
+            </div>
+            <h1 className="text-6xl lg:text-7xl xl:text-8xl font-black tracking-tighter leading-none mb-3">
+              R${" "}
+              <AnimatedNumber value={Math.round(data.receita_total)} duration={1500} />
+            </h1>
+            <p className="text-blue-200/80 text-base lg:text-lg max-w-xl leading-relaxed">
+              Receita total bruta do mês entre{" "}
+              <strong className="text-white">{data.frentes.length} frentes ativas</strong>.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-6">
+              {data.roas_bruto && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-semibold">
+                  <TrendingUp className="w-3 h-3" /> ROAS bruto{" "}
+                  {Number(data.roas_bruto).toFixed(2)}×
+                </span>
+              )}
+              {data.funil_taxas.lead_venda !== undefined && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold">
+                  <Target className="w-3 h-3" /> Lead → Venda{" "}
+                  {(Number(data.funil_taxas.lead_venda) * 100).toFixed(1)}%
+                </span>
+              )}
+            </div>
           </div>
 
-          <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}
-            className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-5 space-y-4">
-            <p className="text-[11px] uppercase tracking-[0.15em] text-blue-200 font-semibold">Meta Ads · Performance</p>
-            <div>
-              <p className="text-5xl font-extrabold tabular-nums leading-none">3,96<span className="text-2xl text-blue-200">×</span></p>
-              <p className="text-xs text-blue-200/80 mt-1">ROAS rastreado pixel</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/15">
+          {data.meta_ads && (
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-5 space-y-4">
+              <p className="text-[11px] uppercase tracking-[0.15em] text-blue-200 font-semibold">
+                Meta Ads · Performance
+              </p>
               <div>
-                <p className="text-[10px] text-blue-300/80 uppercase tracking-wider">Investido</p>
-                <p className="text-base font-bold tabular-nums">R$ 55.096</p>
+                <p className="text-5xl font-extrabold tabular-nums leading-none">
+                  {data.meta_ads.roas_pixel
+                    ? Number(data.meta_ads.roas_pixel).toFixed(2)
+                    : "—"}
+                  <span className="text-2xl text-blue-200">×</span>
+                </p>
+                <p className="text-xs text-blue-200/80 mt-1">ROAS rastreado pixel</p>
               </div>
-              <div>
-                <p className="text-[10px] text-blue-300/80 uppercase tracking-wider">Receita Meta</p>
-                <p className="text-base font-bold tabular-nums">R$ 87.596</p>
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/15">
+                <div>
+                  <p className="text-[10px] text-blue-300/80 uppercase tracking-wider">
+                    Investido
+                  </p>
+                  <p className="text-base font-bold tabular-nums">
+                    {fmtBRL(data.meta_ads.investimento)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-300/80 uppercase tracking-wider">
+                    Receita Meta
+                  </p>
+                  <p className="text-base font-bold tabular-nums">
+                    {fmtBRL(data.meta_ads.receita_pixel)}
+                  </p>
+                </div>
               </div>
             </div>
-          </motion.div>
+          )}
         </div>
       </motion.section>
 
-      {/* ════════ RECEITA POR FRENTE ════════ */}
-      <section>
-        <div className="flex items-baseline justify-between mb-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Frentes ativas</p>
-            <h2 className="text-2xl font-bold tracking-tight">Receita por frente · Abril</h2>
+      {/* FRENTES */}
+      {data.frentes.length > 0 && (
+        <section>
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="text-2xl font-bold tracking-tight">Receita por frente</h2>
+            <span className="text-xs text-muted-foreground">
+              {data.frentes.length} frentes · {fmtBRL(data.receita_total)}
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground">6 frentes · R$ 804.951</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {RECEITAS.map((r, i) => (
-            <ReceitaCard
-              key={r.label}
-              label={r.label}
-              valor={r.valor}
-              meta={r.meta}
-              descricao={r.desc}
-              icon={r.icon}
-              gradient={r.gradient}
-              index={i}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* ════════ FUNIL COMERCIAL CONE 3D ════════ */}
-      <section>
-        <div className="flex items-baseline justify-between mb-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Comercial · Pós-Graduação</p>
-            <h2 className="text-2xl font-bold tracking-tight">Funil de Vendas</h2>
-          </div>
-          <Badge variant="outline" className="text-xs">Lead → Venda 16,8%</Badge>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-6 shadow-[var(--shadow-xs)]">
-            <h3 className="text-sm font-semibold mb-2 text-foreground">Conversão por etapa</h3>
-            <p className="text-xs text-muted-foreground mb-4">5 etapas · 745 leads · 125 vendas</p>
-            <FunilCone3D />
-          </Card>
-
-          <div className="space-y-4">
-            {FUNIL.map((f, i) => {
-              const pct = (f.resultado / f.meta) * 100;
-              const cores = ["bg-rose-500", "bg-orange-500", "bg-amber-500", "bg-yellow-500", "bg-emerald-500"];
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.frentes.map((f, i) => {
+              const visual =
+                FRENTES_VISUAL[f.label] || FRENTES_VISUAL["Cursos Livres"];
               return (
-                <motion.div
-                  key={f.etapa}
-                  initial={{ opacity: 0, x: 12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                >
-                  <Card className="p-4 shadow-[var(--shadow-xs)]">
+                <ReceitaCard
+                  key={f.label}
+                  label={f.label}
+                  valor={
+                    f.label === "Imersão"
+                      ? `${f.quantidade} MQLs`
+                      : fmtBRL(f.valor)
+                  }
+                  meta={f.detalhe || ""}
+                  descricao={f.detalhe || ""}
+                  icon={visual.icon}
+                  gradient={visual.gradient}
+                  index={i}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* FUNIL */}
+      {data.funil_comercial.some((f) => f.resultado > 0) && (
+        <section>
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">Funil de Vendas</h2>
+            {data.funil_taxas.lead_venda !== undefined && (
+              <Badge variant="outline" className="text-xs">
+                Lead → Venda{" "}
+                {(Number(data.funil_taxas.lead_venda) * 100).toFixed(1)}%
+              </Badge>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <h3 className="text-sm font-semibold mb-2">Conversão por etapa</h3>
+              <FunilCone3D
+                etapas={data.funil_comercial.map((e) => ({
+                  nome: e.nome,
+                  valor: e.resultado,
+                  meta: e.meta,
+                }))}
+              />
+            </Card>
+
+            <div className="space-y-4">
+              {data.funil_comercial.map((f, i) => {
+                const pct = f.meta ? (f.resultado / f.meta) * 100 : 100;
+                const cores = [
+                  "bg-rose-500",
+                  "bg-orange-500",
+                  "bg-amber-500",
+                  "bg-yellow-500",
+                  "bg-emerald-500",
+                ];
+                return (
+                  <Card key={f.nome} className="p-4">
                     <div className="flex items-baseline justify-between mb-1.5">
-                      <span className="text-sm font-semibold text-foreground">{f.etapa}</span>
+                      <span className="text-sm font-semibold">{f.nome}</span>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold tabular-nums">{f.resultado}</span>
-                        <span className="text-xs text-muted-foreground">/ {f.meta}</span>
+                        <span className="text-2xl font-bold tabular-nums">
+                          {f.resultado}
+                        </span>
+                        {f.meta && (
+                          <span className="text-xs text-muted-foreground">
+                            / {f.meta}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -232,276 +396,220 @@ export default function OverviewPage() {
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.min(pct, 100)}%` }}
                         transition={{ delay: 0.3 + i * 0.08, duration: 0.8 }}
-                        className={`h-full ${cores[i]} ${pct >= 100 ? '' : 'rounded-r-full'}`}
+                        className={`h-full ${cores[i % 5]}`}
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-1.5">
-                      {pct >= 100 ? "✓ acima da meta" : `${pct.toFixed(1)}% da meta`}
+                      {pct >= 100
+                        ? "✓ acima da meta"
+                        : `${pct.toFixed(1)}% da meta`}
                     </p>
                   </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Taxas */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
-          {TAXAS.map((t, i) => (
-            <motion.div
-              key={`${t.de}-${t.para}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 + i * 0.06 }}
-            >
-              <Card className={`p-3 shadow-[var(--shadow-xs)] ${i === 4 ? 'bg-blue-50 dark:bg-blue-950 border-blue-200' : ''}`}>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{t.de} → {t.para}</p>
-                <p className={`text-xl font-bold tabular-nums mt-1 ${i === 4 ? 'text-blue-700' : ''}`}>{t.pct}%</p>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════════ 3 DONUTS ════════ */}
-      <section>
-        <div className="mb-4">
-          <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Distribuição</p>
-          <h2 className="text-2xl font-bold tracking-tight">De onde vem · Onde vai</h2>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <DonutChart
-            title="Investimento Meta · por categoria"
-            data={DIST_META}
-            centerLabel="Investido"
-            centerValue="R$ 55k"
-          />
-          <DonutChart
-            title="Origem dos Leads"
-            data={ORIGEM_LEADS}
-            centerLabel="Leads"
-            centerValue="6.695"
-          />
-          <DonutChart
-            title="Receita por categoria"
-            data={CAT_PRODUTO}
-            centerLabel="Receita"
-            centerValue="R$ 805k"
-          />
-        </div>
-      </section>
-
-      {/* ════════ META ADS ════════ */}
-      <section>
-        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Marketing · Mídia Paga</p>
-            <h2 className="text-2xl font-bold tracking-tight">Meta Ads — Abril</h2>
-          </div>
-          <div className="flex gap-2">
-            <Badge className="bg-emerald-500 hover:bg-emerald-600">ROAS pixel 3,96×</Badge>
-            <Badge variant="outline">61 campanhas</Badge>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
-          <KPICard label="Investimento" value="R$ 55.096" icon={DollarSign} index={0} />
-          <KPICard label="Impressões" value="4,23M" icon={Eye} index={1} />
-          <KPICard label="Cliques" value="49.714" icon={MousePointerClick} index={2} />
-          <KPICard label="CTR" value="1,18%" icon={TrendingUp} index={3} />
-          <KPICard label="CPC" value="R$ 1,11" icon={Target} index={4} />
-          <KPICard label="Compras Pixel" value={409} icon={Award} index={5} />
-        </div>
-
-        {/* Top campanhas — bar chart horizontal */}
-        <Card className="p-6 shadow-[var(--shadow-xs)]">
-          <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Top 5 Campanhas — Receita Rastreada</h3>
-            <span className="text-xs text-muted-foreground">17 com pixel ativo · ROAS médio 3,96×</span>
-          </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={TOP_CAMPANHAS} layout="vertical" margin={{ left: 0, right: 60, top: 10, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-              <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v) => `R$ ${(v/1000).toFixed(0)}k`} />
-              <YAxis type="category" dataKey="nome" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} width={170} />
-              <Tooltip
-                contentStyle={{ background: "white", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Receita"]}
-              />
-              <Bar dataKey="receita" radius={[0, 6, 6, 0]}>
-                {TOP_CAMPANHAS.map((_, i) => (
-                  <Cell key={i} fill={["#3b82f6","#0d9488","#7c3aed","#d97706","#10b981"][i]} />
-                ))}
-                <LabelList
-                  dataKey="roas"
-                  position="right"
-                  formatter={(v: number) => `${v.toFixed(2)}×`}
-                  style={{ fill: "hsl(var(--foreground))", fontSize: 11, fontWeight: 600 }}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </section>
-
-      {/* ════════ TOP EVENTOS ════════ */}
-      <section>
-        <div className="mb-4">
-          <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Eventos</p>
-          <h2 className="text-2xl font-bold tracking-tight">Top 5 Congressos · Receita</h2>
-        </div>
-
-        <Card className="p-6 shadow-[var(--shadow-xs)]">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={TOP_EVENTOS} layout="vertical" margin={{ left: 0, right: 60, top: 10, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-              <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v) => `R$ ${(v/1000).toFixed(0)}k`} />
-              <YAxis type="category" dataKey="nome" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} width={250} />
-              <Tooltip
-                contentStyle={{ background: "white", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                formatter={(v: number, n: string) => [n === "receita" ? `R$ ${v.toLocaleString("pt-BR")}` : v, n === "receita" ? "Receita" : "Inscritos"]}
-              />
-              <Bar dataKey="receita" fill="#7c3aed" radius={[0, 6, 6, 0]}>
-                <LabelList
-                  dataKey="inscritos"
-                  position="right"
-                  formatter={(v: number) => `${v} inscritos`}
-                  style={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </section>
-
-      {/* ════════ DETALHE: Imersão + Cursos Livres ════════ */}
-      <section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Imersão */}
-          <Card className="p-6 shadow-[var(--shadow-xs)]">
-            <div className="flex items-baseline justify-between mb-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.15em] text-amber-700 font-semibold">Lançamento</p>
-                <h3 className="text-lg font-bold">Imersão Abril</h3>
-              </div>
-              <Badge className="bg-amber-500 hover:bg-amber-600 text-white">63% da meta</Badge>
+                );
+              })}
             </div>
+          </div>
+        </section>
+      )}
 
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Investimento</p>
-                <p className="text-xl font-bold tabular-nums">R$ 15.000</p>
-                <p className="text-[10px] text-emerald-700">100% meta ✓</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receita</p>
-                <p className="text-xl font-bold tabular-nums">R$ 27.716</p>
-                <p className="text-[10px] text-amber-700">63% meta R$ 43.695</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Leads</p>
-                <p className="text-xl font-bold tabular-nums">5.950</p>
-                <p className="text-[10px] text-amber-700">39,7% meta 15k</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">CPL</p>
-                <p className="text-xl font-bold tabular-nums">R$ 3,06</p>
-                <p className="text-[10px] text-rose-700">2,55× meta R$ 1,20</p>
-              </div>
-            </div>
+      {/* META ADS */}
+      {data.meta_ads && (
+        <section>
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">Meta Ads</h2>
+            <Badge>{data.meta_ads.n_campanhas} campanhas</Badge>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+            <KPICard
+              label="Investimento"
+              value={fmtBRL(data.meta_ads.investimento)}
+              icon={DollarSign}
+              index={0}
+            />
+            <KPICard
+              label="Impressões"
+              value={`${(data.meta_ads.impressoes / 1e6).toFixed(2)}M`}
+              icon={Eye}
+              index={1}
+            />
+            <KPICard
+              label="Cliques"
+              value={data.meta_ads.cliques.toLocaleString("pt-BR")}
+              icon={MousePointerClick}
+              index={2}
+            />
+            <KPICard
+              label="CTR"
+              value={
+                data.meta_ads.ctr
+                  ? `${Number(data.meta_ads.ctr).toFixed(2)}%`
+                  : "—"
+              }
+              icon={TrendingUp}
+              index={3}
+            />
+            <KPICard
+              label="CPC"
+              value={data.meta_ads.cpc ? fmtBRL(data.meta_ads.cpc) : "—"}
+              icon={Target}
+              index={4}
+            />
+            <KPICard
+              label="Compras Pixel"
+              value={data.meta_ads.compras_pixel}
+              icon={Award}
+              index={5}
+            />
+          </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Engajamento das Aulas</p>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span>Aula 1</span><span className="font-mono text-muted-foreground">730 simul · 1.800 ao vivo</span></div>
-                <div className="flex justify-between"><span>Aula 2</span><span className="font-mono text-muted-foreground">430 simul · 1.100 ao vivo</span></div>
-                <div className="flex justify-between"><span>Aula 3</span><span className="font-mono text-muted-foreground">407 simul</span></div>
-                <div className="flex justify-between font-semibold pt-2 border-t border-border"><span>Grupo WhatsApp</span><span className="font-mono">4.000 (67,2%)</span></div>
-                <div className="flex justify-between font-semibold"><span>Pesquisa respondida</span><span className="font-mono">1.032 (17,3%)</span></div>
+          {data.top_campanhas.length > 0 && (
+            <Card className="p-6">
+              <h3 className="text-sm font-semibold mb-4">
+                Top {data.top_campanhas.length} Campanhas — Receita Rastreada
+              </h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart
+                  data={data.top_campanhas}
+                  layout="vertical"
+                  margin={{ left: 0, right: 60, top: 10, bottom: 10 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    opacity={0.4}
+                  />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="nome"
+                    tick={{ fontSize: 12 }}
+                    width={170}
+                  />
+                  <Tooltip formatter={(v: number) => [fmtBRL(v), "Receita"]} />
+                  <Bar dataKey="receita" radius={[0, 6, 6, 0]}>
+                    {data.top_campanhas.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={
+                          ["#3b82f6", "#0d9488", "#7c3aed", "#d97706", "#10b981"][
+                            i % 5
+                          ]
+                        }
+                      />
+                    ))}
+                    <LabelList
+                      dataKey="roas"
+                      position="right"
+                      formatter={(v: number) => `${Number(v).toFixed(2)}×`}
+                      style={{ fontSize: 11, fontWeight: 600 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+        </section>
+      )}
+
+      {/* TOP EVENTOS */}
+      {data.top_eventos.length > 0 && (
+        <section>
+          <h2 className="text-2xl font-bold tracking-tight mb-4">
+            Top Congressos · Receita
+          </h2>
+          <Card className="p-6">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={data.top_eventos}
+                layout="vertical"
+                margin={{ left: 0, right: 60, top: 10, bottom: 10 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                  opacity={0.4}
+                />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="nome"
+                  tick={{ fontSize: 12 }}
+                  width={250}
+                />
+                <Tooltip formatter={(v: number) => [fmtBRL(v), "Receita"]} />
+                <Bar dataKey="receita" fill="#7c3aed" radius={[0, 6, 6, 0]}>
+                  <LabelList
+                    dataKey="inscritos"
+                    position="right"
+                    formatter={(v: number) => `${v} inscritos`}
+                    style={{ fontSize: 11 }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </section>
+      )}
+
+      {/* IMERSÃO */}
+      {data.imersao && (
+        <section>
+          <h2 className="text-2xl font-bold tracking-tight mb-4">
+            Lançamento · {data.imersao.nome}
+          </h2>
+          <Card className="p-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-muted/40 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Investimento
+                </p>
+                <p className="text-xl font-bold tabular-nums">
+                  {data.imersao.investimento_resultado
+                    ? fmtBRL(data.imersao.investimento_resultado)
+                    : "—"}
+                </p>
+              </div>
+              <div className="bg-muted/40 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Leads Total
+                </p>
+                <p className="text-xl font-bold tabular-nums">
+                  {data.imersao.leads_total.toLocaleString("pt-BR")}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Org {data.imersao.leads_organico} · Pago {data.imersao.leads_pago}
+                </p>
+              </div>
+              <div className="bg-muted/40 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  CPL
+                </p>
+                <p className="text-xl font-bold tabular-nums">
+                  {data.imersao.cpl_resultado
+                    ? fmtBRL(data.imersao.cpl_resultado)
+                    : "—"}
+                </p>
+              </div>
+              <div className="bg-muted/40 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  MQLs
+                </p>
+                <p className="text-xl font-bold tabular-nums">
+                  {data.imersao.mqls_resultado || "—"}
+                </p>
               </div>
             </div>
           </Card>
-
-          {/* Cursos Livres */}
-          <Card className="p-6 shadow-[var(--shadow-xs)]">
-            <div className="flex items-baseline justify-between mb-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.15em] text-rose-700 font-semibold">Educação Continuada</p>
-                <h3 className="text-lg font-bold">Cursos Livres</h3>
-              </div>
-              <Badge className="bg-rose-500 hover:bg-rose-600 text-white">11% da meta</Badge>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Alunos</p>
-                <p className="text-xl font-bold tabular-nums">67 / 600</p>
-                <p className="text-[10px] text-rose-700">11,2% meta</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receita</p>
-                <p className="text-xl font-bold tabular-nums">R$ 6.499</p>
-                <p className="text-[10px] text-rose-700">11,2% meta</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">CPA</p>
-                <p className="text-xl font-bold tabular-nums">R$ 31,34</p>
-                <p className="text-[10px] text-emerald-700">98% meta R$ 32 ✓</p>
-              </div>
-              <div className="bg-muted/40 rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Anúncio</p>
-                <p className="text-xl font-bold tabular-nums">R$ 2.100</p>
-                <p className="text-[10px] text-muted-foreground">17% meta R$ 12.480</p>
-              </div>
-            </div>
-
-            <div className="border-t border-border pt-4 grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">LL</p>
-                <p className="text-lg font-bold tabular-nums">R$ 2.579</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">% LL</p>
-                <p className="text-lg font-bold tabular-nums">39,7%</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Imp.+CF</p>
-                <p className="text-lg font-bold tabular-nums">R$ 1.819</p>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">⚠️ Volume baixo:</strong> investimento de mídia rodou só 17% do planejado.
-                CPA dentro da meta sugere que <em>escalar investimento</em> mantém custo saudável.
-              </p>
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      {/* ════════ INSIGHTS FINAIS ════════ */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="p-5 border-l-4 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-[var(--shadow-xs)]">
-          <p className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold mb-1">📈 Destaque positivo</p>
-          <p className="text-sm leading-relaxed">
-            <strong>Topo do funil bateu meta pela primeira vez:</strong> 745 leads (+11% acima de 670).
-            ROAS de mídia paga em <strong>14,61× bruto</strong> — cada R$ 1 investido gerou R$ 14,61 em receita total.
-            Top campanha (Comunidade Promo) trouxe <strong>R$ 29,8k</strong> com R$ 9k de investimento.
-          </p>
-        </Card>
-
-        <Card className="p-5 border-l-4 border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-[var(--shadow-xs)]">
-          <p className="text-[11px] uppercase tracking-wider text-amber-700 font-semibold mb-1">🎯 Foco do mês seguinte</p>
-          <p className="text-sm leading-relaxed">
-            <strong>Gargalo na qualificação:</strong> Lead → Ligação só 35,7% (de 745 leads, só 266 receberam ligação).
-            As etapas seguintes do funil (Liga→SQL→Reu→Venda) estão saudáveis acima de 85% cada — o problema é capacidade
-            de cobertura de qualificação. <strong>Recomendação: ampliar SDRs e velocidade de primeira tentativa.</strong>
-          </p>
-        </Card>
-      </section>
-
+        </section>
+      )}
     </div>
   );
 }
