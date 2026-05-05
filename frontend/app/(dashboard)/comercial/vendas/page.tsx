@@ -14,9 +14,12 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ChartCard } from "@/components/dashboard/chart-card";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { api, ApiError } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { DollarSign, Wallet, Clock, Plus } from "lucide-react";
 
 interface Produto { id: string; nome: string; }
 interface Venda {
@@ -131,10 +134,9 @@ export default function VendasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Vendas</h1>
-        <div className="flex gap-2 items-center">
+    <div className="space-y-6" data-density="medium">
+      <div className="flex items-center justify-end flex-wrap gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           <Select value={filtroProduto} onValueChange={(v) => setFiltroProduto(v ?? "todos")}>
             <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -155,7 +157,7 @@ export default function VendasPage() {
             </SelectContent>
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger render={<Button />}>Nova Venda</DialogTrigger>
+            <DialogTrigger render={<Button />}><Plus className="w-4 h-4 mr-1" />Nova Venda</DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Nova Venda</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -210,22 +212,28 @@ export default function VendasPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Ticket Médio</p>
-          <p className="text-2xl font-bold">{ticketMedio != null ? brl(ticketMedio) : "—"}</p>
-          <p className="text-xs text-muted-foreground mt-1">{agregado.qtd} venda(s)</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">% À Vista</p>
-          <p className="text-2xl font-bold">{pct(pctAVista)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Prazo Médio</p>
-          <p className="text-2xl font-bold">{prazoMedio != null ? prazoMedio.toFixed(1) + " meses" : "—"}</p>
-        </Card>
+        <KPICard
+          label="Ticket Médio"
+          value={ticketMedio != null ? brl(ticketMedio) : "—"}
+          previousValue={`${agregado.qtd} venda(s)`}
+          icon={DollarSign}
+          index={0}
+        />
+        <KPICard
+          label="% À Vista"
+          value={pct(pctAVista)}
+          icon={Wallet}
+          index={1}
+        />
+        <KPICard
+          label="Prazo Médio"
+          value={prazoMedio != null ? prazoMedio.toFixed(1) + " meses" : "—"}
+          icon={Clock}
+          index={2}
+        />
       </div>
 
-      <Card>
+      <ChartCard title="Vendas registradas" description={`${MESES[mes-1]} ${ano}`}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -256,7 +264,7 @@ export default function VendasPage() {
             ))}
           </TableBody>
         </Table>
-      </Card>
+      </ChartCard>
     </div>
   );
 }
