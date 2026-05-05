@@ -606,6 +606,6 @@ Alternativas pra contextos onde "ícone de inteligência/cognição" faria senti
 - **Spotify for Podcasters** — plays, seguidores.
 - **Notificações automáticas** (Slack/email) quando meta cair abaixo de X% no meio do mês.
 - **Histórico de mudanças** (auditoria por linha alterada).
-- **Endpoint pra trocar senha** + recuperação por e
+- **Endpoint pra trocar senha** + recuperação por email.
 
 
