@@ -5,9 +5,9 @@ Usage:
 """
 import asyncio
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 
-from app.core.db import async_session, engine
+from app.core.db import async_session
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.catalogo import Canal
@@ -41,12 +41,6 @@ FUNIL_ETAPAS = [
 
 
 async def seed():
-    # Ensure schemas exist
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS mkt"))
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS comercial"))
-
     async with async_session() as db:
         # Canais
         for nome, slug, categoria in CANAIS:
