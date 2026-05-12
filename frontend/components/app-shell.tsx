@@ -68,6 +68,7 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
   {
     label: "Marketing",
     items: [
+      { href: "/marketing/congressos", label: "Congressos", icon: Calendar },
       { href: "/marketing/trafego-pago", label: "Tráfego Pago", icon: Megaphone },
       { href: "/marketing/redes-sociais", label: "Redes Sociais", icon: Camera },
       { href: "/marketing/youtube", label: "YouTube", icon: PlaySquare },
@@ -228,6 +229,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/catalogo/canais": "Canais",
   "/catalogo/eventos": "Eventos (Catálogo)",
   "/eventos": "Eventos",
+  "/marketing/congressos": "Congressos",
   "/marketing/trafego-pago": "Tráfego Pago",
   "/marketing/redes-sociais": "Redes Sociais",
   "/marketing/youtube": "YouTube",
