@@ -23,6 +23,7 @@ import {
   Sparkles,
   Award,
   Users,
+  GraduationCap,
   LogOut,
   Menu,
   Zap,
@@ -70,6 +71,7 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
   {
     label: "Marketing",
     items: [
+      { href: "/marketing/pos", label: "Pós-Graduação", icon: GraduationCap },
       { href: "/marketing/congressos", label: "Congressos", icon: Calendar },
       { href: "/marketing/cursos", label: "Cursos Livres", icon: Award },
       { href: "/marketing/comunidade", label: "Comunidade", icon: Users },
@@ -233,6 +235,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/catalogo/canais": "Canais",
   "/catalogo/eventos": "Eventos (Catálogo)",
   "/eventos": "Eventos",
+  "/marketing/pos": "Pós-Graduação",
   "/marketing/congressos": "Congressos",
   "/marketing/cursos": "Cursos Livres",
   "/marketing/comunidade": "Comunidade",
