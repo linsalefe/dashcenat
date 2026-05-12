@@ -45,7 +45,9 @@ import { toast } from "sonner";
 import type {
   FrenteDashboardOut,
   DashboardKPI,
+  FrentePeriodoOut,
 } from "@/lib/types/marketing-frentes";
+import { FunilTurmaDialog } from "./funil-turma-dialog";
 import {
   parseDecimal,
   formatarMoeda,
@@ -109,6 +111,13 @@ export default function PosPage() {
   const [data, setData] = useState<FrenteDashboardOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [funilOpen, setFunilOpen] = useState(false);
+  const [turmaFunil, setTurmaFunil] = useState<FrentePeriodoOut | null>(null);
+
+  function abrirFunil(t: FrentePeriodoOut) {
+    setTurmaFunil(t);
+    setFunilOpen(true);
+  }
 
   useEffect(() => {
     let canceled = false;
@@ -398,7 +407,11 @@ export default function PosPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-1.5 justify-end">
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirFunil(t)}
+                        >
                           <Eye className="h-3.5 w-3.5 mr-1" /> Funil
                         </Button>
                         <Button size="sm" variant="outline">
@@ -413,6 +426,14 @@ export default function PosPage() {
           </div>
         )}
       </ChartCard>
+
+      <FunilTurmaDialog
+        open={funilOpen}
+        onOpenChange={setFunilOpen}
+        turma={turmaFunil}
+        mes={mes}
+        ano={ano}
+      />
     </div>
   );
 }
