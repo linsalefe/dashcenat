@@ -48,6 +48,7 @@ import type {
   FrentePeriodoOut,
 } from "@/lib/types/marketing-frentes";
 import { FunilTurmaDialog } from "./funil-turma-dialog";
+import { TurmaDialog } from "./turma-dialog";
 import {
   parseDecimal,
   formatarMoeda,
@@ -113,10 +114,26 @@ export default function PosPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [funilOpen, setFunilOpen] = useState(false);
   const [turmaFunil, setTurmaFunil] = useState<FrentePeriodoOut | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [turmaEdit, setTurmaEdit] = useState<FrentePeriodoOut | null>(null);
 
   function abrirFunil(t: FrentePeriodoOut) {
     setTurmaFunil(t);
     setFunilOpen(true);
+  }
+
+  function abrirCriar() {
+    setTurmaEdit(null);
+    setEditOpen(true);
+  }
+
+  function abrirEditar(t: FrentePeriodoOut) {
+    setTurmaEdit(t);
+    setEditOpen(true);
+  }
+
+  function onSaved() {
+    setRefreshKey((k) => k + 1);
   }
 
   useEffect(() => {
@@ -327,6 +344,7 @@ export default function PosPage() {
         actions={
           <Button
             size="sm"
+            onClick={abrirCriar}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Plus className="h-4 w-4 mr-1" /> Nova Turma
@@ -414,7 +432,11 @@ export default function PosPage() {
                         >
                           <Eye className="h-3.5 w-3.5 mr-1" /> Funil
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirEditar(t)}
+                        >
                           <Edit className="h-3.5 w-3.5 mr-1" /> Editar
                         </Button>
                       </div>
@@ -433,6 +455,15 @@ export default function PosPage() {
         turma={turmaFunil}
         mes={mes}
         ano={ano}
+      />
+
+      <TurmaDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        turma={turmaEdit}
+        ano={ano}
+        mes={mes}
+        onSaved={onSaved}
       />
     </div>
   );
