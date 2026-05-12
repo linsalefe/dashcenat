@@ -37,7 +37,6 @@ interface Props {
 
 interface FormState {
   evento_nome: string;
-  investimento_ads: string;
   meta_leads: string;
   leads: string;
   meta_ligacao: string;
@@ -56,7 +55,6 @@ interface FormState {
 
 const FORM_INICIAL: FormState = {
   evento_nome: "",
-  investimento_ads: "0",
   meta_leads: "0", leads: "0",
   meta_ligacao: "0", ligacao: "0",
   meta_sql: "0", sql_reuniao: "0",
@@ -95,7 +93,6 @@ export function TurmaDialog({
     if (turma) {
       setForm({
         evento_nome: turma.evento_nome,
-        investimento_ads: String(parseDecimal(turma.investimento_ads)),
         meta_leads: String(turma.meta_leads ?? 0),
         leads: String(turma.leads ?? 0),
         meta_ligacao: String(turma.meta_ligacao ?? 0),
@@ -132,7 +129,6 @@ export function TurmaDialog({
     setSaving(true);
     try {
       const numerico = {
-        investimento_ads: parseInputDecimal(form.investimento_ads) ?? 0,
         meta_leads: parseInputInteiro(form.meta_leads) ?? 0,
         leads: parseInputInteiro(form.leads) ?? 0,
         meta_ligacao: parseInputInteiro(form.meta_ligacao) ?? 0,
@@ -264,7 +260,7 @@ export function TurmaDialog({
                   onChange={(e) => setField("receita", e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 col-span-2">
                 <Label htmlFor="ticket_medio">Ticket Médio (R$)</Label>
                 <Input
                   id="ticket_medio"
@@ -274,21 +270,6 @@ export function TurmaDialog({
                   value={form.ticket_medio}
                   onChange={(e) => setField("ticket_medio", e.target.value)}
                   placeholder="Vazio = não calcular"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="investimento_ads">
-                  Investimento em Ads (R$)
-                </Label>
-                <Input
-                  id="investimento_ads"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.investimento_ads}
-                  onChange={(e) =>
-                    setField("investimento_ads", e.target.value)
-                  }
                 />
               </div>
               <div className="grid gap-2 col-span-2">
