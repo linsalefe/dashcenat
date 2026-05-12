@@ -16,11 +16,13 @@ import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type {
+  Frente,
   FrentePeriodoOut,
   FrentePeriodoCreate,
   FrentePeriodoUpdate,
 } from "@/lib/types/marketing-frentes";
 import { parseDecimal } from "@/lib/types/marketing-frentes";
+import { TEMA_BOTAO, type CorBotao } from "./tema-frente";
 
 interface Props {
   open: boolean;
@@ -28,6 +30,9 @@ interface Props {
   evento?: FrentePeriodoOut | null;
   ano: number;
   mes: number;
+  frente: Frente;
+  labelSingular: string;
+  corBotao: CorBotao;
   onSaved: () => void;
 }
 
@@ -61,17 +66,21 @@ const FORM_INICIAL: FormState = {
   ticket_medio: "",
 };
 
-export function EventoDialog({
+export function EventoFrenteDialog({
   open,
   onOpenChange,
   evento,
   ano,
   mes,
+  frente,
+  labelSingular,
+  corBotao,
   onSaved,
 }: Props) {
   const [form, setForm] = useState<FormState>(FORM_INICIAL);
   const [saving, setSaving] = useState(false);
   const isEdit = !!evento;
+  const labelLower = labelSingular.toLowerCase();
 
   useEffect(() => {
     if (evento) {
@@ -102,7 +111,7 @@ export function EventoDialog({
 
   async function handleSubmit() {
     if (!form.evento_nome.trim()) {
-      toast.error("Nome do evento é obrigatório");
+      toast.error(`Nome do ${labelLower} é obrigatório`);
       return;
     }
     setSaving(true);
@@ -126,17 +135,17 @@ export function EventoDialog({
       if (isEdit && evento) {
         const payload: FrentePeriodoUpdate = numerico;
         await api.patch(`/frente-periodo/${evento.id}`, payload);
-        toast.success("Evento atualizado");
+        toast.success(`${labelSingular} atualizado`);
       } else {
         const payload: FrentePeriodoCreate = {
-          frente: "congresso",
+          frente,
           ano,
           mes,
           evento_nome: form.evento_nome.trim(),
           ...numerico,
         };
         await api.post("/frente-periodo", payload);
-        toast.success("Evento criado");
+        toast.success(`${labelSingular} criado`);
       }
       onSaved();
       onOpenChange(false);
@@ -152,23 +161,25 @@ export function EventoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Editar Evento" : "Novo Evento"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? `Editar ${labelSingular}` : `Novo ${labelSingular}`}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
               ? `Atualizar dados de ${evento?.evento_nome} em ${mes}/${ano}`
-              : `Cadastrar novo evento de Congresso em ${mes}/${ano}`}
+              : `Cadastrar novo ${labelLower} em ${mes}/${ano}`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label htmlFor="evento_nome">Nome do Evento *</Label>
+            <Label htmlFor="evento_nome">Nome do {labelSingular} *</Label>
             <Input
               id="evento_nome"
               value={form.evento_nome}
               onChange={(e) => setField("evento_nome", e.target.value)}
               disabled={isEdit}
-              placeholder="Ex: VII Congresso Internacional..."
+              placeholder={`Ex: Nome do ${labelLower}...`}
             />
             {isEdit && (
               <p className="text-xs text-muted-foreground">
@@ -319,10 +330,10 @@ export function EventoDialog({
           <Button
             onClick={handleSubmit}
             disabled={saving}
-            className="bg-violet-600 hover:bg-violet-700 text-white"
+            className={TEMA_BOTAO[corBotao]}
           >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isEdit ? "Salvar Alterações" : "Criar Evento"}
+            {isEdit ? "Salvar Alterações" : `Criar ${labelSingular}`}
           </Button>
         </DialogFooter>
       </DialogContent>
