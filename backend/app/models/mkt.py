@@ -246,3 +246,37 @@ class FrentePeriodo(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+# ============================================================
+# Sprint Funil Mensal — funil de mídia paga agregado por (frente, ano, mes)
+# ============================================================
+
+class FunilMensal(Base):
+    __tablename__ = "funil_mensal"
+    __table_args__ = (
+        UniqueConstraint("frente", "ano", "mes", name="uq_funil_mensal_periodo"),
+        CheckConstraint("mes BETWEEN 1 AND 12", name="ck_funil_mes_valido"),
+        CheckConstraint(
+            "frente IN ('pos','congresso','curso','comunidade')",
+            name="ck_funil_frente_valida",
+        ),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    frente: Mapped[str] = mapped_column(String(20), nullable=False)
+    ano: Mapped[int] = mapped_column(Integer, nullable=False)
+    mes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    investimento_ads: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default=text("0"))
+    alcance: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    cliques: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    visitantes_lp: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    checkout: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    compras: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+    extras: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

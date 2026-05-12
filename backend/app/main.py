@@ -11,6 +11,7 @@ from app.api.v1 import (
     comercial,
     etl,
     frente_periodo,
+    funil_mensal,
     intercambio,
     lancamentos,
     overview,
@@ -42,6 +43,7 @@ app.include_router(overview.router, prefix="/api/v1")
 app.include_router(lancamentos.router, prefix="/api/v1")
 app.include_router(intercambio.router, prefix="/api/v1")
 app.include_router(frente_periodo.router, prefix="/api/v1")
+app.include_router(funil_mensal.router, prefix="/api/v1")
 
 
 @app.get("/health")

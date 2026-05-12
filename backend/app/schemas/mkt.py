@@ -296,3 +296,42 @@ class FrenteDashboardOut(BaseModel):
     kpis: list[FrenteDashboardKPI]
     funil: list[FrenteFunilEtapa]
     eventos: list[FrentePeriodoOut]
+
+
+# ============================================================
+# Sprint Funil Mensal — funil de mídia paga por (frente, ano, mes)
+# ============================================================
+
+class FunilMensalBase(BaseModel):
+    frente: Frente
+    ano: int = Field(ge=2020, le=2100)
+    mes: int = Field(ge=1, le=12)
+
+    investimento_ads: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
+    alcance: int = Field(default=0, ge=0)
+    cliques: int = Field(default=0, ge=0)
+    visitantes_lp: int = Field(default=0, ge=0)
+    checkout: int = Field(default=0, ge=0)
+    compras: int = Field(default=0, ge=0)
+    extras: dict[str, Any] = Field(default_factory=dict)
+
+
+class FunilMensalCreate(FunilMensalBase):
+    pass
+
+
+class FunilMensalUpdate(BaseModel):
+    investimento_ads: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    alcance: int | None = Field(default=None, ge=0)
+    cliques: int | None = Field(default=None, ge=0)
+    visitantes_lp: int | None = Field(default=None, ge=0)
+    checkout: int | None = Field(default=None, ge=0)
+    compras: int | None = Field(default=None, ge=0)
+    extras: dict[str, Any] | None = None
+
+
+class FunilMensalOut(FunilMensalBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    created_at: datetime
+    updated_at: datetime

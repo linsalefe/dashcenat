@@ -9,8 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.v1.funil_mensal import buscar_ou_criar as buscar_funil_mensal
 from app.core.db import get_db
-from app.models.mkt import FrentePeriodo
+from app.models.mkt import FrentePeriodo, FunilMensal
 from app.models.user import User
 from app.schemas.mkt import (
     Frente,
@@ -69,7 +70,9 @@ def _soma(eventos: list[FrentePeriodo], attr: str) -> Decimal:
     return total
 
 
-def _dashboard_pos(eventos: list[FrentePeriodo], ano: int, mes: int) -> FrenteDashboardOut:
+def _dashboard_pos(
+    eventos: list[FrentePeriodo], funil: FunilMensal, ano: int, mes: int
+) -> FrenteDashboardOut:
     leads_meta = _soma(eventos, "meta_leads")
     leads_real = _soma(eventos, "leads")
     lig_meta = _soma(eventos, "meta_ligacao")
@@ -82,7 +85,7 @@ def _dashboard_pos(eventos: list[FrentePeriodo], ano: int, mes: int) -> FrenteDa
     ven_real = _soma(eventos, "vendas")
     receita = _soma(eventos, "receita")
     meta_receita = _soma(eventos, "meta_receita")
-    invest = _soma(eventos, "investimento_ads")
+    invest = Decimal(str(funil.investimento_ads))
 
     ticket = (receita / ven_real).quantize(Decimal("0.01")) if ven_real > 0 else None
 
@@ -120,22 +123,29 @@ def _dashboard_pos(eventos: list[FrentePeriodo], ano: int, mes: int) -> FrenteDa
     )
 
 
-def _dashboard_mkt(frente: Frente, eventos: list[FrentePeriodo], ano: int, mes: int) -> FrenteDashboardOut:
-    invest = _soma(eventos, "investimento_ads")
-    alcance = _soma(eventos, "alcance")
-    cliques = _soma(eventos, "cliques")
-    visitas = _soma(eventos, "visitantes_lp")
-    checkout = _soma(eventos, "checkout")
-    compras = _soma(eventos, "compras")
+def _dashboard_mkt(
+    frente: Frente,
+    eventos: list[FrentePeriodo],
+    funil: FunilMensal,
+    ano: int,
+    mes: int,
+) -> FrenteDashboardOut:
+    invest = Decimal(str(funil.investimento_ads))
+    alcance = funil.alcance
+    cliques = funil.cliques
+    visitas = funil.visitantes_lp
+    checkout = funil.checkout
+    compras = funil.compras
+
     meta_insc = _soma(eventos, "meta_inscritos")
     inscritos = _soma(eventos, "inscritos")
     receita = _soma(eventos, "receita")
     meta_receita = _soma(eventos, "meta_receita")
 
     ticket = (receita / inscritos).quantize(Decimal("0.01")) if inscritos > 0 else None
-    cpa = (invest / inscritos).quantize(Decimal("0.01")) if inscritos > 0 else None
+    cpa = (invest / compras).quantize(Decimal("0.01")) if compras > 0 else None
 
-    funil = [
+    funil_etapas = [
         FrenteFunilEtapa(nome="Alcance", realizado=alcance),
         FrenteFunilEtapa(nome="Cliques", realizado=cliques, pct_meta=_pct(cliques, alcance)),
         FrenteFunilEtapa(nome="Visitantes LP", realizado=visitas, pct_meta=_pct(visitas, cliques)),
@@ -158,7 +168,7 @@ def _dashboard_mkt(frente: Frente, eventos: list[FrentePeriodo], ano: int, mes: 
 
     return FrenteDashboardOut(
         frente=frente, ano=ano, mes=mes,
-        kpis=kpis, funil=funil,
+        kpis=kpis, funil=funil_etapas,
         eventos=[FrentePeriodoOut.model_validate(e) for e in eventos],
     )
 
@@ -181,9 +191,11 @@ async def dashboard_frente(
     result = await db.execute(q)
     eventos = list(result.scalars().all())
 
+    funil = await buscar_funil_mensal(db, frente, ano, mes)
+
     if frente == "pos":
-        return _dashboard_pos(eventos, ano, mes)
-    return _dashboard_mkt(frente, eventos, ano, mes)
+        return _dashboard_pos(eventos, funil, ano, mes)
+    return _dashboard_mkt(frente, eventos, funil, ano, mes)
 
 
 @router.get("/{item_id}", response_model=FrentePeriodoOut)
