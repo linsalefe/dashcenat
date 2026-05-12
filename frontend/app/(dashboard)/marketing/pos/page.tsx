@@ -24,6 +24,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { ChartCard } from "@/components/dashboard/chart-card";
+import { FunilCone3D } from "@/components/overview/funil-cone-3d";
+import { ReceitaCard } from "@/components/overview/receita-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type {
@@ -230,6 +234,46 @@ export default function PosPage() {
                 />
               );
             })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ChartCard
+          title="Funil Comercial Agregado"
+          description="Leads → Ligação → SQL → Reunião → Vendas (todas as 16 turmas somadas)"
+          loading={loading}
+          className="lg:col-span-2"
+        >
+          <FunilCone3D
+            etapas={(data?.funil ?? []).map((e) => ({
+              nome: e.nome,
+              valor: parseDecimal(e.realizado),
+              meta: e.meta != null ? parseDecimal(e.meta) : null,
+            }))}
+          />
+        </ChartCard>
+
+        {loading ? (
+          <Skeleton className="h-[200px] w-full rounded-2xl" />
+        ) : (
+          (() => {
+            const kpiReceita = kpiPorLabel(data?.kpis, "Receita");
+            return (
+              <ReceitaCard
+                label="RECEITA DE PÓS"
+                valor={formatarMoeda(kpiReceita?.valor)}
+                meta={
+                  kpiReceita?.meta
+                    ? formatarMoeda(kpiReceita.meta)
+                    : undefined
+                }
+                descricao={`Total faturado em ${MESES[mes - 1]}/${ano}`}
+                icon={DollarSign}
+                gradient="bg-gradient-to-br from-blue-600 to-blue-800"
+                index={0}
+              />
+            );
+          })()
+        )}
       </div>
     </div>
   );
