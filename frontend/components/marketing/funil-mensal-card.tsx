@@ -28,8 +28,7 @@ import {
   parseInputDecimal,
   parseInputInteiro,
 } from "@/lib/types/marketing-frentes";
-
-type CorBotao = "violet" | "rose" | "fuchsia" | "cyan";
+import { TEMA_BOTAO, type CorBotao } from "./tema-frente";
 
 interface Props {
   frente: Frente;
@@ -44,13 +43,6 @@ const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
-
-const COR_BOTAO: Record<CorBotao, string> = {
-  violet: "bg-violet-600 hover:bg-violet-700",
-  rose: "bg-rose-600 hover:bg-rose-700",
-  fuchsia: "bg-fuchsia-600 hover:bg-fuchsia-700",
-  cyan: "bg-cyan-600 hover:bg-cyan-700",
-};
 
 export function FunilMensalCard({
   frente,
@@ -106,7 +98,7 @@ export function FunilMensalCard({
         actions={
           <Button
             size="sm"
-            className={`${COR_BOTAO[corBotao]} text-white`}
+            className={TEMA_BOTAO[corBotao]}
             onClick={() => setDialogOpen(true)}
             disabled={loading || !funil}
           >
@@ -281,7 +273,7 @@ function EditarFunilDialog({
           <Button
             onClick={salvar}
             disabled={saving}
-            className={`${COR_BOTAO[corBotao]} text-white`}
+            className={TEMA_BOTAO[corBotao]}
           >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salvar

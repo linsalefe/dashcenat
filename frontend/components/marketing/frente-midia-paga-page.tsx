@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/select";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { ChartCard } from "@/components/dashboard/chart-card";
-import { FunilCone3D } from "@/components/overview/funil-cone-3d";
 import { ReceitaCard } from "@/components/overview/receita-card";
+import { FunilMensalCard } from "./funil-mensal-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -280,20 +280,16 @@ export function FrenteMidiaPagaPage(props: FrenteMidiaPagaPageProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ChartCard
-          title="Funil de Mídia Paga"
-          description="Alcance → Cliques → Visitantes LP → Checkout → Compras"
-          loading={loading}
-          className="lg:col-span-2"
-        >
-          <FunilCone3D
-            etapas={(data?.funil ?? []).map((e) => ({
-              nome: e.nome,
-              valor: parseDecimal(e.realizado),
-              meta: e.meta != null ? parseDecimal(e.meta) : null,
-            }))}
+        <div className="lg:col-span-2">
+          <FunilMensalCard
+            frente={frente}
+            ano={ano}
+            mes={mes}
+            corBotao={corBotao}
+            refreshKey={refreshKey}
+            onSaved={onSaved}
           />
-        </ChartCard>
+        </div>
 
         {loading ? (
           <Skeleton className="h-[200px] w-full rounded-2xl" />
@@ -348,8 +344,6 @@ export function FrenteMidiaPagaPage(props: FrenteMidiaPagaPageProps) {
                   <TableHead className="text-center">Inscritos</TableHead>
                   <TableHead className="text-right">Receita</TableHead>
                   <TableHead className="text-right">Ticket Médio</TableHead>
-                  <TableHead className="text-right">Investido</TableHead>
-                  <TableHead className="text-center">Compras</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -381,12 +375,6 @@ export function FrenteMidiaPagaPage(props: FrenteMidiaPagaPageProps) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {e.ticket_medio ? formatarMoeda(e.ticket_medio) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatarMoeda(e.investimento_ads)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatarNumero(e.compras)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

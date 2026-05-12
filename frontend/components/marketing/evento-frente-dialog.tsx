@@ -42,12 +42,6 @@ interface Props {
 
 interface FormState {
   evento_nome: string;
-  investimento_ads: string;
-  alcance: string;
-  cliques: string;
-  visitantes_lp: string;
-  checkout: string;
-  compras: string;
   meta_inscritos: string;
   inscritos: string;
   meta_receita: string;
@@ -57,12 +51,6 @@ interface FormState {
 
 const FORM_INICIAL: FormState = {
   evento_nome: "",
-  investimento_ads: "0",
-  alcance: "0",
-  cliques: "0",
-  visitantes_lp: "0",
-  checkout: "0",
-  compras: "0",
   meta_inscritos: "0",
   inscritos: "0",
   meta_receita: "0",
@@ -90,12 +78,6 @@ export function EventoFrenteDialog({
     if (evento) {
       setForm({
         evento_nome: evento.evento_nome,
-        investimento_ads: String(parseDecimal(evento.investimento_ads)),
-        alcance: String(evento.alcance ?? 0),
-        cliques: String(evento.cliques ?? 0),
-        visitantes_lp: String(evento.visitantes_lp ?? 0),
-        checkout: String(evento.checkout ?? 0),
-        compras: String(evento.compras ?? 0),
         meta_inscritos: String(evento.meta_inscritos ?? 0),
         inscritos: String(evento.inscritos ?? 0),
         meta_receita: String(parseDecimal(evento.meta_receita)),
@@ -121,12 +103,6 @@ export function EventoFrenteDialog({
     setSaving(true);
     try {
       const numerico = {
-        investimento_ads: parseInputDecimal(form.investimento_ads) ?? 0,
-        alcance: parseInputInteiro(form.alcance) ?? 0,
-        cliques: parseInputInteiro(form.cliques) ?? 0,
-        visitantes_lp: parseInputInteiro(form.visitantes_lp) ?? 0,
-        checkout: parseInputInteiro(form.checkout) ?? 0,
-        compras: parseInputInteiro(form.compras) ?? 0,
         meta_inscritos: parseInputInteiro(form.meta_inscritos) ?? 0,
         inscritos: parseInputInteiro(form.inscritos) ?? 0,
         meta_receita: parseInputDecimal(form.meta_receita) ?? 0,
@@ -238,86 +214,17 @@ export function EventoFrenteDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="ticket_medio">Ticket Médio (R$)</Label>
-              <Input
-                id="ticket_medio"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.ticket_medio}
-                onChange={(e) => setField("ticket_medio", e.target.value)}
-                placeholder="Auto se vazio"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="investimento_ads">Investimento em Ads (R$)</Label>
-              <Input
-                id="investimento_ads"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.investimento_ads}
-                onChange={(e) => setField("investimento_ads", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="border-t pt-4 mt-2">
-            <h4 className="text-sm font-semibold mb-3">Funil de Mídia Paga</h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="alcance">Alcance</Label>
-                <Input
-                  id="alcance"
-                  type="number"
-                  min="0"
-                  value={form.alcance}
-                  onChange={(e) => setField("alcance", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cliques">Cliques</Label>
-                <Input
-                  id="cliques"
-                  type="number"
-                  min="0"
-                  value={form.cliques}
-                  onChange={(e) => setField("cliques", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="visitantes_lp">Visitantes LP</Label>
-                <Input
-                  id="visitantes_lp"
-                  type="number"
-                  min="0"
-                  value={form.visitantes_lp}
-                  onChange={(e) => setField("visitantes_lp", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="checkout">Checkout</Label>
-                <Input
-                  id="checkout"
-                  type="number"
-                  min="0"
-                  value={form.checkout}
-                  onChange={(e) => setField("checkout", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="compras">Compras</Label>
-                <Input
-                  id="compras"
-                  type="number"
-                  min="0"
-                  value={form.compras}
-                  onChange={(e) => setField("compras", e.target.value)}
-                />
-              </div>
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ticket_medio">Ticket Médio (R$)</Label>
+            <Input
+              id="ticket_medio"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.ticket_medio}
+              onChange={(e) => setField("ticket_medio", e.target.value)}
+              placeholder="Auto se vazio"
+            />
           </div>
         </div>
 
