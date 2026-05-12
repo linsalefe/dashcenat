@@ -21,7 +21,11 @@ import type {
   FrentePeriodoCreate,
   FrentePeriodoUpdate,
 } from "@/lib/types/marketing-frentes";
-import { parseDecimal } from "@/lib/types/marketing-frentes";
+import {
+  parseDecimal,
+  parseInputDecimal,
+  parseInputInteiro,
+} from "@/lib/types/marketing-frentes";
 import { TEMA_BOTAO, type CorBotao } from "./tema-frente";
 
 interface Props {
@@ -117,19 +121,17 @@ export function EventoFrenteDialog({
     setSaving(true);
     try {
       const numerico = {
-        investimento_ads: Number(form.investimento_ads) || 0,
-        alcance: Number(form.alcance) || 0,
-        cliques: Number(form.cliques) || 0,
-        visitantes_lp: Number(form.visitantes_lp) || 0,
-        checkout: Number(form.checkout) || 0,
-        compras: Number(form.compras) || 0,
-        meta_inscritos: Number(form.meta_inscritos) || 0,
-        inscritos: Number(form.inscritos) || 0,
-        meta_receita: Number(form.meta_receita) || 0,
-        receita: Number(form.receita) || 0,
-        ticket_medio: form.ticket_medio.trim()
-          ? Number(form.ticket_medio)
-          : null,
+        investimento_ads: parseInputDecimal(form.investimento_ads) ?? 0,
+        alcance: parseInputInteiro(form.alcance) ?? 0,
+        cliques: parseInputInteiro(form.cliques) ?? 0,
+        visitantes_lp: parseInputInteiro(form.visitantes_lp) ?? 0,
+        checkout: parseInputInteiro(form.checkout) ?? 0,
+        compras: parseInputInteiro(form.compras) ?? 0,
+        meta_inscritos: parseInputInteiro(form.meta_inscritos) ?? 0,
+        inscritos: parseInputInteiro(form.inscritos) ?? 0,
+        meta_receita: parseInputDecimal(form.meta_receita) ?? 0,
+        receita: parseInputDecimal(form.receita) ?? 0,
+        ticket_medio: parseInputDecimal(form.ticket_medio),
       };
 
       if (isEdit && evento) {

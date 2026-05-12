@@ -20,7 +20,11 @@ import type {
   FrentePeriodoUpdate,
   FrentePeriodoCreate,
 } from "@/lib/types/marketing-frentes";
-import { parseDecimal } from "@/lib/types/marketing-frentes";
+import {
+  parseDecimal,
+  parseInputDecimal,
+  parseInputInteiro,
+} from "@/lib/types/marketing-frentes";
 
 interface Props {
   open: boolean;
@@ -128,27 +132,23 @@ export function TurmaDialog({
     setSaving(true);
     try {
       const numerico = {
-        investimento_ads: Number(form.investimento_ads) || 0,
-        meta_leads: Number(form.meta_leads) || 0,
-        leads: Number(form.leads) || 0,
-        meta_ligacao: Number(form.meta_ligacao) || 0,
-        ligacao: Number(form.ligacao) || 0,
-        meta_sql: Number(form.meta_sql) || 0,
-        sql_reuniao: Number(form.sql_reuniao) || 0,
-        meta_reuniao: Number(form.meta_reuniao) || 0,
-        reuniao_realizada: Number(form.reuniao_realizada) || 0,
-        meta_vendas: Number(form.meta_vendas) || 0,
-        vendas: Number(form.vendas) || 0,
-        meta_inscritos: Number(form.meta_vendas) || 0,
-        inscritos: Number(form.vendas) || 0,
-        meta_receita: Number(form.meta_receita) || 0,
-        receita: Number(form.receita) || 0,
-        ticket_medio: form.ticket_medio.trim()
-          ? Number(form.ticket_medio)
-          : null,
-        no_show_pct: form.no_show_pct.trim()
-          ? Number(form.no_show_pct)
-          : null,
+        investimento_ads: parseInputDecimal(form.investimento_ads) ?? 0,
+        meta_leads: parseInputInteiro(form.meta_leads) ?? 0,
+        leads: parseInputInteiro(form.leads) ?? 0,
+        meta_ligacao: parseInputInteiro(form.meta_ligacao) ?? 0,
+        ligacao: parseInputInteiro(form.ligacao) ?? 0,
+        meta_sql: parseInputInteiro(form.meta_sql) ?? 0,
+        sql_reuniao: parseInputInteiro(form.sql_reuniao) ?? 0,
+        meta_reuniao: parseInputInteiro(form.meta_reuniao) ?? 0,
+        reuniao_realizada: parseInputInteiro(form.reuniao_realizada) ?? 0,
+        meta_vendas: parseInputInteiro(form.meta_vendas) ?? 0,
+        vendas: parseInputInteiro(form.vendas) ?? 0,
+        meta_inscritos: parseInputInteiro(form.meta_vendas) ?? 0,
+        inscritos: parseInputInteiro(form.vendas) ?? 0,
+        meta_receita: parseInputDecimal(form.meta_receita) ?? 0,
+        receita: parseInputDecimal(form.receita) ?? 0,
+        ticket_medio: parseInputDecimal(form.ticket_medio),
+        no_show_pct: parseInputDecimal(form.no_show_pct),
       };
 
       if (isEdit && turma) {
