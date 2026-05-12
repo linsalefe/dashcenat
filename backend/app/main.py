@@ -5,7 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.db import engine
-from app.api.v1 import auth, catalogo, comercial, etl, intercambio, lancamentos, overview
+from app.api.v1 import (
+    auth,
+    catalogo,
+    comercial,
+    etl,
+    frente_periodo,
+    intercambio,
+    lancamentos,
+    overview,
+)
 
 
 @asynccontextmanager
@@ -32,6 +41,7 @@ app.include_router(etl.router, prefix="/api/v1")
 app.include_router(overview.router, prefix="/api/v1")
 app.include_router(lancamentos.router, prefix="/api/v1")
 app.include_router(intercambio.router, prefix="/api/v1")
+app.include_router(frente_periodo.router, prefix="/api/v1")
 
 
 @app.get("/health")
