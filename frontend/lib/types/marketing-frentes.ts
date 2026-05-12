@@ -130,3 +130,39 @@ export function formatarPct(v: string | number | null | undefined): string {
   if (v == null) return "—";
   return `${(parseDecimal(v) * 100).toFixed(1)}%`;
 }
+
+/**
+ * Converte string de input PT-BR pra number decimal.
+ * Aceita: "217,32" → 217.32 / "217.32" → 217.32 / "1.234,56" → 1234.56.
+ * Strings vazias ou inválidas viram null.
+ *
+ * Regra: se a string tem vírgula, vírgula é decimal e ponto é milhar.
+ * Se só tem ponto, ponto é decimal (compatível com input ASCII).
+ */
+export function parseInputDecimal(v: string): number | null {
+  const s = v.trim();
+  if (s === "") return null;
+  let normalizado: string;
+  if (s.includes(",")) {
+    normalizado = s.replace(/\./g, "").replace(",", ".");
+  } else {
+    normalizado = s;
+  }
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Converte string de input pra inteiro positivo.
+ * Aceita: "34156" → 34156 / "34.156" → 34156 / "34,156" → 34156.
+ * Pra inteiros, qualquer ponto/vírgula é separador de milhar — remove ambos.
+ * Strings vazias ou inválidas viram null.
+ */
+export function parseInputInteiro(v: string): number | null {
+  const s = v.trim();
+  if (s === "") return null;
+  const limpo = s.replace(/[.,]/g, "");
+  const n = Number(limpo);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
