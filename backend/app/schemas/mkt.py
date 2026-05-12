@@ -1,10 +1,13 @@
 """Schemas Pydantic do domínio mkt (Sprint APR1)."""
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+Frente = Literal["pos", "congresso", "curso", "comunidade"]
 
 
 # ===== MetaAdsCampanha =====
@@ -176,3 +179,120 @@ class OverviewMensal(BaseModel):
     top_campanhas: list[TopCampanha] = Field(default_factory=list)
     top_eventos: list[TopEvento] = Field(default_factory=list)
     imersao: ImersaoDetalhe | None = None
+
+
+# ============================================================
+# Sprint Marketing Frentes — Pós / Congressos / Cursos / Comunidade
+# ============================================================
+
+class FrentePeriodoBase(BaseModel):
+    """Campos editáveis pelo gestor via Dialog."""
+    frente: Frente
+    ano: int = Field(ge=2020, le=2100)
+    mes: int = Field(ge=1, le=12)
+    evento_nome: str = Field(min_length=1, max_length=500)
+    evento_id: UUID | None = None
+
+    investimento_ads: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
+
+    alcance: int = Field(default=0, ge=0)
+    cliques: int = Field(default=0, ge=0)
+    visitantes_lp: int = Field(default=0, ge=0)
+    checkout: int = Field(default=0, ge=0)
+    compras: int = Field(default=0, ge=0)
+
+    meta_leads: int | None = Field(default=None, ge=0)
+    leads: int | None = Field(default=None, ge=0)
+    meta_ligacao: int | None = Field(default=None, ge=0)
+    ligacao: int | None = Field(default=None, ge=0)
+    meta_sql: int | None = Field(default=None, ge=0)
+    sql_reuniao: int | None = Field(default=None, ge=0)
+    meta_reuniao: int | None = Field(default=None, ge=0)
+    reuniao_realizada: int | None = Field(default=None, ge=0)
+    meta_vendas: int | None = Field(default=None, ge=0)
+    vendas: int | None = Field(default=None, ge=0)
+
+    meta_inscritos: int = Field(default=0, ge=0)
+    inscritos: int = Field(default=0, ge=0)
+    meta_receita: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
+    receita: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
+
+    ticket_medio: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    taxa_doity: Decimal | None = Field(default=None, ge=0, le=1)
+    no_show_pct: Decimal | None = Field(default=None, ge=0, le=1)
+
+    extras: dict[str, Any] = Field(default_factory=dict)
+
+
+class FrentePeriodoCreate(FrentePeriodoBase):
+    pass
+
+
+class FrentePeriodoUpdate(BaseModel):
+    """Patch parcial — não permite trocar (frente, ano, mes, evento_nome). Delete + cria de novo pra isso."""
+    evento_id: UUID | None = None
+
+    investimento_ads: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+
+    alcance: int | None = Field(default=None, ge=0)
+    cliques: int | None = Field(default=None, ge=0)
+    visitantes_lp: int | None = Field(default=None, ge=0)
+    checkout: int | None = Field(default=None, ge=0)
+    compras: int | None = Field(default=None, ge=0)
+
+    meta_leads: int | None = Field(default=None, ge=0)
+    leads: int | None = Field(default=None, ge=0)
+    meta_ligacao: int | None = Field(default=None, ge=0)
+    ligacao: int | None = Field(default=None, ge=0)
+    meta_sql: int | None = Field(default=None, ge=0)
+    sql_reuniao: int | None = Field(default=None, ge=0)
+    meta_reuniao: int | None = Field(default=None, ge=0)
+    reuniao_realizada: int | None = Field(default=None, ge=0)
+    meta_vendas: int | None = Field(default=None, ge=0)
+    vendas: int | None = Field(default=None, ge=0)
+
+    meta_inscritos: int | None = Field(default=None, ge=0)
+    inscritos: int | None = Field(default=None, ge=0)
+    meta_receita: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    receita: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+
+    ticket_medio: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    taxa_doity: Decimal | None = Field(default=None, ge=0, le=1)
+    no_show_pct: Decimal | None = Field(default=None, ge=0, le=1)
+
+    extras: dict[str, Any] | None = None
+
+
+class FrentePeriodoOut(FrentePeriodoBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+# ===== Dashboards agregados de cada frente =====
+
+class FrenteFunilEtapa(BaseModel):
+    """Etapa do funil exibida na tela de uma frente."""
+    nome: str
+    meta: Decimal | int | None = None
+    realizado: Decimal | int | None = None
+    pct_meta: Decimal | None = None      # 0..1
+
+
+class FrenteDashboardKPI(BaseModel):
+    label: str
+    valor: Decimal | int | str
+    meta: Decimal | int | None = None
+    pct_meta: Decimal | None = None      # 0..1
+    formato: Literal["numero", "moeda", "percentual"] = "numero"
+
+
+class FrenteDashboardOut(BaseModel):
+    frente: Frente
+    ano: int
+    mes: int
+    kpis: list[FrenteDashboardKPI]
+    funil: list[FrenteFunilEtapa]
+    eventos: list[FrentePeriodoOut]
