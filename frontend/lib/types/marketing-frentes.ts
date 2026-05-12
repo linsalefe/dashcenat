@@ -166,3 +166,28 @@ export function parseInputInteiro(v: string): number | null {
   if (!Number.isFinite(n)) return null;
   return Math.trunc(n);
 }
+
+export interface FunilMensalOut {
+  id: string;
+  frente: Frente;
+  ano: number;
+  mes: number;
+  investimento_ads: string;
+  alcance: number;
+  cliques: number;
+  visitantes_lp: number;
+  checkout: number;
+  compras: number;
+  extras: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FunilMensalUpdate {
+  investimento_ads?: number;
+  alcance?: number;
+  cliques?: number;
+  visitantes_lp?: number;
+  checkout?: number;
+  compras?: number;
+}
