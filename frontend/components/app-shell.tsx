@@ -22,6 +22,7 @@ import {
   Radio,
   Sparkles,
   Award,
+  Users,
   LogOut,
   Menu,
   Zap,
@@ -71,6 +72,7 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
     items: [
       { href: "/marketing/congressos", label: "Congressos", icon: Calendar },
       { href: "/marketing/cursos", label: "Cursos Livres", icon: Award },
+      { href: "/marketing/comunidade", label: "Comunidade", icon: Users },
       { href: "/marketing/trafego-pago", label: "Tráfego Pago", icon: Megaphone },
       { href: "/marketing/redes-sociais", label: "Redes Sociais", icon: Camera },
       { href: "/marketing/youtube", label: "YouTube", icon: PlaySquare },
@@ -233,6 +235,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/eventos": "Eventos",
   "/marketing/congressos": "Congressos",
   "/marketing/cursos": "Cursos Livres",
+  "/marketing/comunidade": "Comunidade",
   "/marketing/trafego-pago": "Tráfego Pago",
   "/marketing/redes-sociais": "Redes Sociais",
   "/marketing/youtube": "YouTube",
