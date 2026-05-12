@@ -1,7 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Calendar,
+  RefreshCw,
+  Users,
+  DollarSign,
+  TrendingUp,
+  Target,
+  MousePointerClick,
+  Loader2,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -10,6 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { KPICard } from "@/components/dashboard/kpi-card";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import type {
+  FrenteDashboardOut,
+  DashboardKPI,
+} from "@/lib/types/marketing-frentes";
+import {
+  formatarKPI,
+  formatarMoeda,
+  parseDecimal,
+} from "@/lib/types/marketing-frentes";
 
 const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -19,10 +41,55 @@ const ANO_ATUAL = new Date().getFullYear();
 const MES_ATUAL = new Date().getMonth() + 1;
 const ANOS = [ANO_ATUAL - 1, ANO_ATUAL, ANO_ATUAL + 1];
 
+const KPI_CONFIG: Record<string, { icone: LucideIcon; ordem: number; rotulo?: string }> = {
+  "Inscritos":           { icone: Users,             ordem: 1 },
+  "Receita":             { icone: DollarSign,        ordem: 2 },
+  "Ticket Médio":        { icone: TrendingUp,        ordem: 3 },
+  "Investimento em Ads": { icone: Target,            ordem: 4, rotulo: "Investido em Ads" },
+  "CPA":                 { icone: MousePointerClick, ordem: 5 },
+  "Eventos Ativos":      { icone: Calendar,          ordem: 6 },
+};
+
+function metaComparativo(kpi: DashboardKPI): string | undefined {
+  if (!kpi.meta) return undefined;
+  if (kpi.formato === "moeda") return `Meta: ${formatarMoeda(kpi.meta)}`;
+  return `Meta: ${parseDecimal(kpi.meta).toLocaleString("pt-BR")}`;
+}
+
 export default function CongressosPage() {
   const [ano, setAno] = useState(ANO_ATUAL);
   const [mes, setMes] = useState(MES_ATUAL);
+  const [data, setData] = useState<FrenteDashboardOut | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let canceled = false;
+    setLoading(true);
+    api
+      .get<FrenteDashboardOut>(
+        `/frente-periodo/dashboard/congresso?ano=${ano}&mes=${mes}`,
+      )
+      .then((res) => {
+        if (!canceled) setData(res);
+      })
+      .catch((err: Error) => {
+        if (!canceled) {
+          toast.error(`Erro ao carregar dashboard: ${err.message}`);
+          setData(null);
+        }
+      })
+      .finally(() => {
+        if (!canceled) setLoading(false);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [ano, mes, refreshKey]);
+
+  const kpisOrdenados = (data?.kpis ?? [])
+    .filter((k) => KPI_CONFIG[k.label])
+    .sort((a, b) => KPI_CONFIG[a.label].ordem - KPI_CONFIG[b.label].ordem);
 
   return (
     <div className="space-y-6">
@@ -73,21 +140,40 @@ export default function CongressosPage() {
           </div>
 
           <Button
-            variant="default"
             onClick={() => setRefreshKey((k) => k + 1)}
             className="bg-violet-600 hover:bg-violet-700 text-white"
+            disabled={loading}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            {loading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
             Atualizar
           </Button>
         </div>
       </div>
 
-      <div className="text-sm text-muted-foreground italic">
-        (KPIs, funil, receita e tabela serão carregados aqui — etapas 4 a 7)
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <KPICard key={i} label="" value="" loading index={i} />
+            ))
+          : kpisOrdenados.map((kpi, i) => {
+              const cfg = KPI_CONFIG[kpi.label];
+              const Icone = cfg.icone;
+              return (
+                <KPICard
+                  key={kpi.label}
+                  label={cfg.rotulo ?? kpi.label}
+                  value={formatarKPI(kpi)}
+                  icon={Icone}
+                  previousValue={metaComparativo(kpi)}
+                  index={i}
+                />
+              );
+            })}
       </div>
-
-      <input type="hidden" value={refreshKey} readOnly />
     </div>
   );
 }
