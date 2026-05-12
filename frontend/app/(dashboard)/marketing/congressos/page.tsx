@@ -10,6 +10,8 @@ import {
   Target,
   MousePointerClick,
   Loader2,
+  Edit,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,15 @@ import { ChartCard } from "@/components/dashboard/chart-card";
 import { FunilCone3D } from "@/components/overview/funil-cone-3d";
 import { ReceitaCard } from "@/components/overview/receita-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type {
@@ -34,6 +45,7 @@ import type {
 import {
   formatarKPI,
   formatarMoeda,
+  formatarNumero,
   parseDecimal,
 } from "@/lib/types/marketing-frentes";
 
@@ -65,6 +77,29 @@ function kpiPorLabel(
   label: string,
 ): DashboardKPI | undefined {
   return kpis?.find((k) => k.label === label);
+}
+
+function badgeAtingimento(real: number, meta: number) {
+  if (meta <= 0) return <Badge variant="outline">—</Badge>;
+  const pct = real / meta;
+  const texto = `${(pct * 100).toFixed(0)}%`;
+  if (pct >= 0.8)
+    return (
+      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+        {texto}
+      </Badge>
+    );
+  if (pct >= 0.4)
+    return (
+      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+        {texto}
+      </Badge>
+    );
+  return (
+    <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100">
+      {texto}
+    </Badge>
+  );
 }
 
 export default function CongressosPage() {
@@ -225,6 +260,92 @@ export default function CongressosPage() {
           })()
         )}
       </div>
+
+      <ChartCard
+        title="Eventos no Período"
+        description={`${data?.eventos.length ?? 0} eventos ativos em ${MESES[mes - 1]}/${ano}`}
+        loading={loading}
+        actions={
+          <Button
+            size="sm"
+            className="bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" /> Novo Evento
+          </Button>
+        }
+      >
+        {data && data.eventos.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <Calendar className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">
+              Nenhum evento cadastrado em {MESES[mes - 1]}/{ano}
+            </p>
+            <p className="text-sm mt-1">
+              Clique em &quot;Novo Evento&quot; para começar
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Evento</TableHead>
+                  <TableHead className="text-center">Inscritos</TableHead>
+                  <TableHead className="text-right">Receita</TableHead>
+                  <TableHead className="text-right">Ticket Médio</TableHead>
+                  <TableHead className="text-right">Investido</TableHead>
+                  <TableHead className="text-center">Compras</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.eventos ?? []).map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell
+                      className="max-w-[320px] truncate font-medium"
+                      title={e.evento_nome}
+                    >
+                      {e.evento_nome}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="font-semibold tabular-nums">
+                          {formatarNumero(e.inscritos)} /{" "}
+                          {formatarNumero(e.meta_inscritos)}
+                        </span>
+                        {badgeAtingimento(e.inscritos, e.meta_inscritos)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="font-semibold">
+                        {formatarMoeda(e.receita)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Meta: {formatarMoeda(e.meta_receita)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {e.ticket_medio ? formatarMoeda(e.ticket_medio) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatarMoeda(e.investimento_ads)}
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums">
+                      {formatarNumero(e.compras)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline">
+                        <Edit className="h-3.5 w-3.5 mr-1" />
+                        Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ChartCard>
     </div>
   );
 }
