@@ -38,9 +38,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { EventoDialog } from "./evento-dialog";
 import type {
   FrenteDashboardOut,
   DashboardKPI,
+  FrentePeriodoOut,
 } from "@/lib/types/marketing-frentes";
 import {
   formatarKPI,
@@ -108,6 +110,24 @@ export default function CongressosPage() {
   const [data, setData] = useState<FrenteDashboardOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [eventoEditando, setEventoEditando] = useState<FrentePeriodoOut | null>(
+    null,
+  );
+
+  function abrirCriar() {
+    setEventoEditando(null);
+    setDialogOpen(true);
+  }
+
+  function abrirEditar(ev: FrentePeriodoOut) {
+    setEventoEditando(ev);
+    setDialogOpen(true);
+  }
+
+  function onSaved() {
+    setRefreshKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let canceled = false;
@@ -268,6 +288,7 @@ export default function CongressosPage() {
         actions={
           <Button
             size="sm"
+            onClick={abrirCriar}
             className="bg-violet-600 hover:bg-violet-700 text-white"
           >
             <Plus className="h-4 w-4 mr-1" /> Novo Evento
@@ -334,7 +355,11 @@ export default function CongressosPage() {
                       {formatarNumero(e.compras)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="outline">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => abrirEditar(e)}
+                      >
                         <Edit className="h-3.5 w-3.5 mr-1" />
                         Editar
                       </Button>
@@ -346,6 +371,15 @@ export default function CongressosPage() {
           </div>
         )}
       </ChartCard>
+
+      <EventoDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        evento={eventoEditando}
+        ano={ano}
+        mes={mes}
+        onSaved={onSaved}
+      />
     </div>
   );
 }
