@@ -13,6 +13,7 @@ import {
   PercentSquare,
   Calendar,
   Loader2,
+  Edit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,18 +23,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { ChartCard } from "@/components/dashboard/chart-card";
 import { FunilCone3D } from "@/components/overview/funil-cone-3d";
 import { ReceitaCard } from "@/components/overview/receita-card";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import type { FrenteDashboardOut } from "@/lib/types/marketing-frentes";
+import type {
+  FrenteDashboardOut,
+  FrentePeriodoOut,
+} from "@/lib/types/marketing-frentes";
 import {
   parseDecimal,
   formatarMoeda,
   formatarNumero,
 } from "@/lib/types/marketing-frentes";
+import { MidiaTurmaDialog } from "./midia-turma-dialog";
 
 const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -50,12 +64,45 @@ type CampoMidiaNumerico =
   | "checkout"
   | "compras";
 
+function badgeAtingimento(real: number, meta: number) {
+  if (meta <= 0) return <Badge variant="outline">—</Badge>;
+  const pct = real / meta;
+  const texto = `${(pct * 100).toFixed(0)}%`;
+  if (pct >= 0.8)
+    return (
+      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+        {texto}
+      </Badge>
+    );
+  if (pct >= 0.4)
+    return (
+      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+        {texto}
+      </Badge>
+    );
+  return (
+    <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100">
+      {texto}
+    </Badge>
+  );
+}
+
 export default function PosMktPage() {
   const [ano, setAno] = useState(ANO_ATUAL);
   const [mes, setMes] = useState(MES_ATUAL);
   const [data, setData] = useState<FrenteDashboardOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [turmaEdit, setTurmaEdit] = useState<FrentePeriodoOut | null>(null);
+
+  function abrirEditar(t: FrentePeriodoOut) {
+    setTurmaEdit(t);
+    setDialogOpen(true);
+  }
+  function onSaved() {
+    setRefreshKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let canceled = false;
@@ -238,6 +285,97 @@ export default function PosMktPage() {
           index={0}
         />
       </div>
+
+      <ChartCard
+        title="Mídia Paga por Turma"
+        description={`${data?.eventos.length ?? 0} turmas em ${MESES[mes - 1]}/${ano}`}
+        loading={loading}
+      >
+        {data && data.eventos.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <Megaphone className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">
+              Nenhuma turma em {MESES[mes - 1]}/{ano}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Turma</TableHead>
+                  <TableHead className="text-right">Investido</TableHead>
+                  <TableHead className="text-center">Alcance</TableHead>
+                  <TableHead className="text-center">Cliques</TableHead>
+                  <TableHead className="text-center">Visitantes LP</TableHead>
+                  <TableHead className="text-center">Checkout</TableHead>
+                  <TableHead className="text-center">Compras</TableHead>
+                  <TableHead className="text-right">CPA</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.eventos ?? []).map((t) => {
+                  const inv = parseDecimal(t.investimento_ads);
+                  const cpa = t.compras > 0 ? inv / t.compras : null;
+                  return (
+                    <TableRow key={t.id}>
+                      <TableCell
+                        className="max-w-[280px] truncate font-medium"
+                        title={t.evento_nome}
+                      >
+                        {t.evento_nome}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatarMoeda(t.investimento_ads)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatarNumero(t.alcance)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatarNumero(t.cliques)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatarNumero(t.visitantes_lp)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatarNumero(t.checkout)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-semibold">
+                            {formatarNumero(t.compras)}
+                          </span>
+                          {badgeAtingimento(t.compras, t.meta_vendas ?? 0)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {cpa != null ? formatarMoeda(cpa) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirEditar(t)}
+                        >
+                          <Edit className="h-3.5 w-3.5 mr-1" /> Editar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ChartCard>
+
+      <MidiaTurmaDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        turma={turmaEdit}
+        onSaved={onSaved}
+      />
     </div>
   );
 }
