@@ -13,6 +13,9 @@ import {
   Calendar,
   PercentSquare,
   Loader2,
+  Edit,
+  Eye,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,15 @@ import { ChartCard } from "@/components/dashboard/chart-card";
 import { FunilCone3D } from "@/components/overview/funil-cone-3d";
 import { ReceitaCard } from "@/components/overview/receita-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type {
@@ -59,6 +71,29 @@ function metaCompar(kpi: DashboardKPI | undefined): string | undefined {
   if (!kpi?.meta) return undefined;
   if (kpi.formato === "moeda") return `Meta: ${formatarMoeda(kpi.meta)}`;
   return `Meta: ${parseDecimal(kpi.meta).toLocaleString("pt-BR")}`;
+}
+
+function badgeAtingimento(real: number, meta: number) {
+  if (meta <= 0) return <Badge variant="outline">—</Badge>;
+  const pct = real / meta;
+  const texto = `${(pct * 100).toFixed(0)}%`;
+  if (pct >= 0.8)
+    return (
+      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+        {texto}
+      </Badge>
+    );
+  if (pct >= 0.4)
+    return (
+      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+        {texto}
+      </Badge>
+    );
+  return (
+    <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100">
+      {texto}
+    </Badge>
+  );
 }
 
 interface CardSpec {
@@ -275,6 +310,109 @@ export default function PosPage() {
           })()
         )}
       </div>
+
+      <ChartCard
+        title="Turmas de Pós-Graduação"
+        description={`${data?.eventos.length ?? 0} turmas ativas em ${MESES[mes - 1]}/${ano}`}
+        loading={loading}
+        actions={
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" /> Nova Turma
+          </Button>
+        }
+      >
+        {data && data.eventos.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <GraduationCap className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">
+              Nenhuma turma cadastrada em {MESES[mes - 1]}/{ano}
+            </p>
+            <p className="text-sm mt-1">
+              Clique em &quot;Nova Turma&quot; para começar
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Turma</TableHead>
+                  <TableHead className="text-center">Leads</TableHead>
+                  <TableHead className="text-center">Ligação</TableHead>
+                  <TableHead className="text-center">SQL</TableHead>
+                  <TableHead className="text-center">Reunião</TableHead>
+                  <TableHead className="text-center">Vendas</TableHead>
+                  <TableHead className="text-right">Receita</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.eventos ?? []).map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell
+                      className="max-w-[260px] truncate font-medium"
+                      title={t.evento_nome}
+                    >
+                      {t.evento_nome}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="tabular-nums font-medium">
+                          {formatarNumero(t.leads ?? 0)}/
+                          {formatarNumero(t.meta_leads ?? 0)}
+                        </span>
+                        {badgeAtingimento(t.leads ?? 0, t.meta_leads ?? 0)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums">
+                      {formatarNumero(t.ligacao ?? 0)}/
+                      {formatarNumero(t.meta_ligacao ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums">
+                      {formatarNumero(t.sql_reuniao ?? 0)}/
+                      {formatarNumero(t.meta_sql ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums">
+                      {formatarNumero(t.reuniao_realizada ?? 0)}/
+                      {formatarNumero(t.meta_reuniao ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="tabular-nums font-semibold">
+                          {formatarNumero(t.vendas ?? 0)}/
+                          {formatarNumero(t.meta_vendas ?? 0)}
+                        </span>
+                        {badgeAtingimento(t.vendas ?? 0, t.meta_vendas ?? 0)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="font-semibold">
+                        {formatarMoeda(t.receita)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Meta: {formatarMoeda(t.meta_receita)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-1.5 justify-end">
+                        <Button size="sm" variant="outline">
+                          <Eye className="h-3.5 w-3.5 mr-1" /> Funil
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <Edit className="h-3.5 w-3.5 mr-1" /> Editar
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ChartCard>
     </div>
   );
 }
