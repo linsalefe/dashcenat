@@ -15,7 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, pk_uuid
@@ -189,3 +189,60 @@ class Lancamento(Base):
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+# ============================================================
+# Sprint Marketing Frentes — Tabela única pra Pós/Congressos/Cursos/Comunidade
+# ============================================================
+
+class FrentePeriodo(Base):
+    __tablename__ = "frente_periodo"
+    __table_args__ = (
+        UniqueConstraint("frente", "ano", "mes", "evento_nome", name="uq_frente_periodo_evento"),
+        CheckConstraint("mes BETWEEN 1 AND 12", name="ck_mes_valido"),
+        CheckConstraint(
+            "frente IN ('pos','congresso','curso','comunidade')",
+            name="ck_frente_valida",
+        ),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    frente: Mapped[str] = mapped_column(String(20), nullable=False)
+    ano: Mapped[int] = mapped_column(Integer, nullable=False)
+    mes: Mapped[int] = mapped_column(Integer, nullable=False)
+    evento_nome: Mapped[str] = mapped_column(String(500), nullable=False)
+    evento_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+    investimento_ads: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default=text("0"))
+
+    alcance: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    cliques: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    visitantes_lp: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    checkout: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    compras: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+    meta_leads: Mapped[int | None] = mapped_column(Integer)
+    leads: Mapped[int | None] = mapped_column(Integer)
+    meta_ligacao: Mapped[int | None] = mapped_column(Integer)
+    ligacao: Mapped[int | None] = mapped_column(Integer)
+    meta_sql: Mapped[int | None] = mapped_column(Integer)
+    sql_reuniao: Mapped[int | None] = mapped_column(Integer)
+    meta_reuniao: Mapped[int | None] = mapped_column(Integer)
+    reuniao_realizada: Mapped[int | None] = mapped_column(Integer)
+    meta_vendas: Mapped[int | None] = mapped_column(Integer)
+    vendas: Mapped[int | None] = mapped_column(Integer)
+
+    meta_inscritos: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    inscritos: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    meta_receita: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default=text("0"))
+    receita: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default=text("0"))
+
+    ticket_medio: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    taxa_doity: Mapped[Decimal | None] = mapped_column(Numeric(6, 4))
+    no_show_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 4))
+
+    extras: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
