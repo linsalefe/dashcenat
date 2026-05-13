@@ -29,6 +29,8 @@ import {
   Zap,
   Globe2,
   Upload,
+  BarChart3,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -71,6 +73,9 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
   {
     label: "Marketing",
     items: [
+      { href: "/marketing/tracking", label: "Tracking (GA)", icon: BarChart3 },
+      { href: "/marketing/tracking/utm", label: "Gerador UTM", icon: Link2 },
+      { href: "/marketing/hotmart", label: "Hotmart", icon: ShoppingBag },
       { href: "/marketing/pos", label: "Pós-Graduação", icon: GraduationCap },
       { href: "/marketing/pos-mkt", label: "Pós - Mkt", icon: Megaphone },
       { href: "/marketing/congressos", label: "Congressos", icon: Calendar },
@@ -250,6 +255,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/marketing/landing-pages": "Landing Pages",
   "/marketing/seo": "SEO",
   "/marketing/lancamentos": "Lançamentos",
+  "/marketing/tracking": "Tracking (GA)",
+  "/marketing/tracking/utm": "Gerador UTM",
+  "/marketing/hotmart": "Hotmart",
   "/comercial/intercambio": "Intercâmbio",
   "/configuracoes/import": "Importar planilhas",
 };

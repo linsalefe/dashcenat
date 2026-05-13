@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Integer,
@@ -155,6 +156,25 @@ class VendaHotmart(Base):
     codigo_oferta: Mapped[str | None] = mapped_column(String(50))
     tipo_pagamento_oferta: Mapped[str | None] = mapped_column(String(100))
     observacao: Mapped[str | None] = mapped_column(Text)
+
+    # ----- Campos derivados do payload Hotmart -----
+    taxa_hotmart: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    meio_pagamento_detalhe: Mapped[str | None] = mapped_column(String(150))
+    is_subscription: Mapped[bool | None] = mapped_column(Boolean)
+    commission_as: Mapped[str | None] = mapped_column(String(30))
+
+    # ----- Matching com tracking interno -----
+    utm_source: Mapped[str | None] = mapped_column(String(100))
+    utm_medium: Mapped[str | None] = mapped_column(String(100))
+    utm_campaign: Mapped[str | None] = mapped_column(String(150))
+    utm_term: Mapped[str | None] = mapped_column(String(150))
+    utm_content: Mapped[str | None] = mapped_column(String(150))
+    tracking_codes_raw: Mapped[dict] = mapped_column(
+        JSONB, server_default=text("'{}'::jsonb")
+    )
+    matched_via: Mapped[str | None] = mapped_column(String(30))  # 'hotmart_src' | 'email' | 'manual'
+    anon_id_match: Mapped[str | None] = mapped_column(String(64))
+
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
