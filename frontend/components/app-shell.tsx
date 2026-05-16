@@ -110,12 +110,21 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
     label: "Configurações",
     items: [
       { href: "/configuracoes/import", label: "Importar", icon: Upload },
+      { href: "/configuracoes/usuarios", label: "Usuários", icon: Users },
     ],
   },
 ];
 
+export type CurrentUser = {
+  id: string;
+  nome: string;
+  email: string;
+  papel?: string;
+  ativo?: boolean;
+};
+
 function useCurrentUser() {
-  const [user, setUser] = useState<{ nome: string; email: string } | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -260,6 +269,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/marketing/hotmart": "Hotmart",
   "/comercial/intercambio": "Intercâmbio",
   "/configuracoes/import": "Importar planilhas",
+  "/configuracoes/usuarios": "Usuários",
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

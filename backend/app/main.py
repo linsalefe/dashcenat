@@ -17,6 +17,7 @@ from app.api.v1 import (
     lancamentos,
     overview,
     tracking,
+    usuarios,
     utm,
 )
 from app.etl.scheduler import start_scheduler, stop_scheduler
@@ -54,20 +55,29 @@ async def tracking_open_cors(request, call_next):
         "/api/v1/hotmart/webhook",
     )
     is_public = any(request.url.path.startswith(p) for p in public_paths)
+
+    # Reflete o origin específico em vez de wildcard `*`, pra ser compatível
+    # com requests que enviam credentials (cookies). Wildcard quebra nessa situação.
+    origin = request.headers.get("origin", "*")
+
     if is_public and request.method == "OPTIONS":
         from starlette.responses import Response
         return Response(
             status_code=204,
             headers={
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": origin,
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Max-Age": "600",
+                "Vary": "Origin",
             },
         )
     response = await call_next(request)
     if is_public:
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
     return response
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -82,6 +92,7 @@ app.include_router(funil_mensal.router, prefix="/api/v1")
 app.include_router(tracking.router, prefix="/api/v1")
 app.include_router(utm.router, prefix="/api/v1")
 app.include_router(hotmart.router, prefix="/api/v1")
+app.include_router(usuarios.router, prefix="/api/v1/usuarios", tags=["usuarios"])
 
 
 @app.get("/health")

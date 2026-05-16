@@ -174,6 +174,7 @@ class VendaHotmart(Base):
     )
     matched_via: Mapped[str | None] = mapped_column(String(30))  # 'hotmart_src' | 'email' | 'manual'
     anon_id_match: Mapped[str | None] = mapped_column(String(64))
+    cta: Mapped[str | None] = mapped_column(String(80))  # data-event do botão que originou a venda
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

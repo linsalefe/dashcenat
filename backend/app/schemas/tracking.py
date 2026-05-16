@@ -67,10 +67,14 @@ class TrackEventOut(BaseModel):
 class StatTotais(BaseModel):
     pageviews: int
     cliques: int
-    conversoes: int
-    receita: Decimal
+    conversoes: int  # mantém: eventos data-conversion do snippet (raro pra CENAT)
+    receita: Decimal  # mantém: receita das conversoes do snippet
     taxa_conversao: float
     visitantes_unicos: int
+    # ---- Vendas reais (Hotmart, atribuídas via UTM/anon_id) ----
+    vendas: int = 0
+    receita_real: Decimal = Decimal(0)
+    ticket_medio: Decimal = Decimal(0)
 
 
 class StatLinha(BaseModel):
@@ -79,6 +83,8 @@ class StatLinha(BaseModel):
     cliques: int
     conversoes: int
     receita: Decimal
+    vendas: int = 0
+    receita_real: Decimal = Decimal(0)
 
 
 class StatSerie(BaseModel):
@@ -87,6 +93,8 @@ class StatSerie(BaseModel):
     cliques: int
     conversoes: int
     receita: Decimal
+    vendas: int = 0
+    receita_real: Decimal = Decimal(0)
 
 
 class StatsResponse(BaseModel):
@@ -94,4 +102,5 @@ class StatsResponse(BaseModel):
     por_source: list[StatLinha]
     por_campaign: list[StatLinha]
     por_produto: list[StatLinha]
+    por_cta: list[StatLinha] = []
     serie_diaria: list[StatSerie]

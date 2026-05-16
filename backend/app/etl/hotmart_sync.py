@@ -138,7 +138,13 @@ async def sync_hotmart(
 
 
 async def _upsert_venda(db: AsyncSession, parsed: dict[str, Any]) -> dict[str, Any]:
-    """Insert ou update por transacao. Devolve {inserido, matched}."""
+    """Insert ou update por transacao. Devolve {inserido, matched}.
+
+    Estratégia de matching (last-touch):
+    1. Se `parsed['anon_id_match']` veio do `purchase.tracking.source` (cn_aid do snippet)
+       → busca o último evento de tracking desse anon_id e enriquece UTMs faltantes.
+    2. Se não tem anon_id mas tem email → matching por email (legado, menos preciso).
+    """
     stmt = pg_insert(VendaHotmart).values(**parsed)
     stmt = stmt.on_conflict_do_update(
         index_elements=[VendaHotmart.transacao],
@@ -147,37 +153,139 @@ async def _upsert_venda(db: AsyncSession, parsed: dict[str, Any]) -> dict[str, A
             for k in parsed.keys()
             if k != "transacao"
         },
-    ).returning(VendaHotmart.id, VendaHotmart.cliente_email, VendaHotmart.data_venda)
+    ).returning(
+        VendaHotmart.id,
+        VendaHotmart.cliente_email,
+        VendaHotmart.data_venda,
+    )
     result = await db.execute(stmt)
     row = result.first()
+    if not row:
+        return {"inserido": False, "matched": False}
 
-    inserido = row is not None
+    venda_id, email, data_venda = row
     matched = False
+    update_vals: dict[str, Any] = {}
 
-    # Matching por email com tracking.eventos (se ainda não tem UTM)
-    if inserido and parsed.get("cliente_email") and not parsed.get("utm_source"):
-        venda_id, email, data_venda = row
-        matched_info = await _match_tracking(db, email, data_venda)
+    anon_id = parsed.get("anon_id_match")
+    tem_utm = bool(parsed.get("utm_source"))
+
+    # ----- 1) Match por anon_id (alta confiança, last-touch) -----
+    if anon_id:
+        last_event = await _last_touch_por_anon_id(db, anon_id, data_venda)
+        if last_event:
+            # Enriquecer UTMs faltantes a partir do último evento do visitante
+            for k in ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"):
+                if not parsed.get(k) and last_event.get(k):
+                    update_vals[k] = last_event[k]
+            matched = True
+            # já marcado em parsed como hotmart_anon_id, mantém
+        else:
+            # anon_id veio do src mas não temos eventos rastreados
+            # (cookie expirou ou tracking nunca chegou no backend)
+            matched = bool(parsed.get("utm_source"))
+
+    # ----- 2) Match por email (fallback, só se não veio anon_id) -----
+    elif email and not tem_utm:
+        matched_info = await _match_tracking_email(db, email, data_venda)
         if matched_info:
-            await db.execute(
-                update(VendaHotmart)
-                .where(VendaHotmart.id == venda_id)
-                .values(
-                    utm_source=matched_info.get("utm_source"),
-                    utm_medium=matched_info.get("utm_medium"),
-                    utm_campaign=matched_info.get("utm_campaign"),
-                    utm_term=matched_info.get("utm_term"),
-                    utm_content=matched_info.get("utm_content"),
-                    matched_via="email",
-                    anon_id_match=matched_info.get("anon_id"),
-                )
-            )
+            update_vals.update({
+                "utm_source": matched_info.get("utm_source"),
+                "utm_medium": matched_info.get("utm_medium"),
+                "utm_campaign": matched_info.get("utm_campaign"),
+                "utm_term": matched_info.get("utm_term"),
+                "utm_content": matched_info.get("utm_content"),
+                "matched_via": "email",
+                "anon_id_match": matched_info.get("anon_id"),
+            })
             matched = True
 
-    return {"inserido": inserido, "matched": matched}
+    if update_vals:
+        await db.execute(
+            update(VendaHotmart).where(VendaHotmart.id == venda_id).values(**update_vals)
+        )
+
+    return {"inserido": True, "matched": matched}
 
 
-async def _match_tracking(
+async def _last_touch_por_anon_id(
+    db: AsyncSession,
+    anon_id: str,
+    data_venda: datetime | None,
+) -> dict[str, Any] | None:
+    """Pega o último evento ANTES (ou até) da venda do anon_id que tenha utm_source.
+
+    Last-touch: pega o último UTM tocado antes da venda. Se não tem evento com UTM
+    antes da venda, cai pra qualquer evento com UTM do mesmo anon_id.
+    """
+    if not anon_id:
+        return None
+
+    limite = data_venda or datetime.utcnow()
+
+    # Last-touch: último evento com utm_source até a data da venda
+    q = (
+        select(
+            TrackingEvento.utm_source,
+            TrackingEvento.utm_medium,
+            TrackingEvento.utm_campaign,
+            TrackingEvento.utm_term,
+            TrackingEvento.utm_content,
+            TrackingEvento.created_at,
+        )
+        .where(
+            and_(
+                TrackingEvento.anon_id == anon_id,
+                TrackingEvento.created_at <= limite,
+                TrackingEvento.utm_source.isnot(None),
+            )
+        )
+        .order_by(TrackingEvento.created_at.desc())
+        .limit(1)
+    )
+    r = await db.execute(q)
+    row = r.first()
+    if row:
+        return {
+            "utm_source": row.utm_source,
+            "utm_medium": row.utm_medium,
+            "utm_campaign": row.utm_campaign,
+            "utm_term": row.utm_term,
+            "utm_content": row.utm_content,
+        }
+
+    # Fallback: qualquer evento com UTM do mesmo anon_id (sem limite de data)
+    q2 = (
+        select(
+            TrackingEvento.utm_source,
+            TrackingEvento.utm_medium,
+            TrackingEvento.utm_campaign,
+            TrackingEvento.utm_term,
+            TrackingEvento.utm_content,
+        )
+        .where(
+            and_(
+                TrackingEvento.anon_id == anon_id,
+                TrackingEvento.utm_source.isnot(None),
+            )
+        )
+        .order_by(TrackingEvento.created_at.desc())
+        .limit(1)
+    )
+    r2 = await db.execute(q2)
+    row2 = r2.first()
+    if row2:
+        return {
+            "utm_source": row2.utm_source,
+            "utm_medium": row2.utm_medium,
+            "utm_campaign": row2.utm_campaign,
+            "utm_term": row2.utm_term,
+            "utm_content": row2.utm_content,
+        }
+    return None
+
+
+async def _match_tracking_email(
     db: AsyncSession,
     email: str,
     data_venda: datetime | None,

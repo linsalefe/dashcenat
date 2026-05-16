@@ -165,25 +165,36 @@ def parse_sale(item: dict[str, Any]) -> dict[str, Any]:
 
     transacao = purchase.get("transaction") or item.get("transaction") or ""
 
-    # tenta extrair UTMs do tracking.source quando vier no formato "utm_source|utm_medium|utm_campaign"
+    # Extrai cn_aid + utm_* do tracking.source (formato gerado pelo snippet DashCENAT)
     src = tracking.get("source") or tracking.get("source_sck") or ""
-    utm_source, utm_medium, utm_campaign = _parse_tracking_source(src)
+    parsed_src = _parse_tracking_source(src)
+    anon_id = parsed_src.get("cn_aid")
+    utm_source = parsed_src.get("utm_source")
+    utm_medium = parsed_src.get("utm_medium")
+    utm_campaign = parsed_src.get("utm_campaign")
+    utm_term = parsed_src.get("utm_term")
+    utm_content = parsed_src.get("utm_content")
+    cta = parsed_src.get("cta")
 
     preco_total = float(price.get("value") or 0)
     taxa = float(hotmart_fee.get("total") or 0)
-    # líquido = bruto - taxa da Hotmart. Quando full_price existe (vendas de ordem
-    # de parcelas) usa ele como bruto pro cálculo.
     bruto_pro_calc = float(
         (purchase.get("full_price") or price).get("value") or price.get("value") or 0
     )
     faturamento_liquido = max(bruto_pro_calc - taxa, 0.0)
+
+    # matched_via: anon_id > src > nada
+    matched_via = None
+    if anon_id:
+        matched_via = "hotmart_anon_id"
+    elif utm_source:
+        matched_via = "hotmart_src"
 
     return {
         "transacao": str(transacao),
         "produto": str(product.get("name") or ""),
         "produtor": str(producer.get("name") or "") or None,
         "afiliado": str(affiliate.get("name") or "") or None,
-        # payment.type = nome curto (PIX, CREDIT_CARD, BOLETO) — fallback pra method se faltar
         "meio_pagamento": payment.get("type") or payment.get("method"),
         "meio_pagamento_detalhe": payment.get("method"),
         "moeda": price.get("currency_value") or price.get("currency_code"),
@@ -212,46 +223,96 @@ def parse_sale(item: dict[str, Any]) -> dict[str, Any]:
         "utm_source": utm_source,
         "utm_medium": utm_medium,
         "utm_campaign": utm_campaign,
+        "utm_term": utm_term,
+        "utm_content": utm_content,
         "tracking_codes_raw": tracking,
-        "matched_via": "hotmart_src" if utm_source else None,
+        "matched_via": matched_via,
+        "anon_id_match": anon_id,
+        "cta": cta,
     }
 
 
-def _parse_tracking_source(src: str) -> tuple[str | None, str | None, str | None]:
+def _parse_tracking_source(src: str) -> dict[str, str | None]:
     """
-    Hotmart costuma receber o tracking via param `src=` na URL do checkout.
-    Convenções comuns:
-      - "utm_source|utm_medium|utm_campaign"
-      - "utm_source"
-      - JSON com chaves utm_*
+    Parsea o `purchase.tracking.source` da Hotmart em dict com chaves:
+      cn_aid, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+
+    Formatos suportados (em ordem de preferência):
+
+    1. Formato DashCENAT (chave:valor|chave:valor) — gerado automaticamente pelo snippet:
+       "cn_aid:abc123|utm_source:instagram|utm_medium:bio|utm_campaign:lanc_jun"
+
+    2. JSON: '{"utm_source":"x","utm_campaign":"y","cn_aid":"z"}'
+
+    3. Pipe simples (legado): "instagram|bio|lanc_jun" → source|medium|campaign
+
+    4. Underscore (legado): "instagram_bio_lanc_jun"
+
+    5. String solta: usa como utm_source
     """
+    out: dict[str, str | None] = {
+        "cn_aid": None,
+        "utm_source": None,
+        "utm_medium": None,
+        "utm_campaign": None,
+        "utm_term": None,
+        "utm_content": None,
+        "cta": None,
+    }
     if not src:
-        return None, None, None
+        return out
     s = src.strip()
 
-    # tenta JSON
+    # Formato 1: chave:valor|chave:valor (DashCENAT snippet)
+    if ":" in s and "|" in s:
+        parsed = {}
+        for part in s.split("|"):
+            if ":" not in part:
+                continue
+            k, _, v = part.partition(":")
+            parsed[k.strip().lower()] = v.strip() or None
+        # se tem pelo menos 1 chave conhecida, considera formato 1
+        if any(k in parsed for k in out.keys()):
+            for k in out.keys():
+                if parsed.get(k):
+                    out[k] = parsed[k]
+            return out
+
+    # Formato 2: JSON
     if s.startswith("{"):
         try:
             import json as _json
             d = _json.loads(s)
-            return (
-                d.get("utm_source") or d.get("source"),
-                d.get("utm_medium") or d.get("medium"),
-                d.get("utm_campaign") or d.get("campaign"),
-            )
+            return {
+                "cn_aid": d.get("cn_aid") or d.get("anon_id"),
+                "utm_source": d.get("utm_source") or d.get("source"),
+                "utm_medium": d.get("utm_medium") or d.get("medium"),
+                "utm_campaign": d.get("utm_campaign") or d.get("campaign"),
+                "utm_term": d.get("utm_term"),
+                "utm_content": d.get("utm_content"),
+                "cta": d.get("cta"),
+            }
         except Exception:
             pass
 
-    # pipe-separated
+    # Formato 3: pipe simples
     if "|" in s:
         parts = [p.strip() or None for p in s.split("|")]
         parts += [None, None, None]
-        return parts[0], parts[1], parts[2]
+        out["utm_source"] = parts[0]
+        out["utm_medium"] = parts[1]
+        out["utm_campaign"] = parts[2]
+        return out
 
-    # underscore-separated
+    # Formato 4: underscore
     if "_" in s:
         parts = s.split("_", 2)
         parts += [None, None, None]
-        return parts[0], parts[1], parts[2]
+        out["utm_source"] = parts[0]
+        out["utm_medium"] = parts[1]
+        out["utm_campaign"] = parts[2]
+        return out
 
-    return s, None, None
+    # Formato 5: string solta
+    out["utm_source"] = s
+    return out

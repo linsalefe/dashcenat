@@ -63,7 +63,10 @@ async function request<T>(
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      // Só redireciona se NÃO estiver já em /login (evita loop e flash)
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
     }
     throw new ApiError(401, "Não autorizado");
   }

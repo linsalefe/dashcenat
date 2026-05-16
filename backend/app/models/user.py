@@ -16,6 +16,8 @@ class User(Base):
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    papel: Mapped[str] = mapped_column(String(20), server_default=text("'user'"))  # 'admin' | 'user'
+    ultimo_acesso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

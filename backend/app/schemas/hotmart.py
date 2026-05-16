@@ -66,6 +66,7 @@ class VendaHotmartOut(BaseModel):
     utm_medium: str | None
     utm_campaign: str | None
     matched_via: str | None
+    cta: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -78,3 +79,4 @@ class HotmartStats(BaseModel):
     receita_por_dia: list[dict[str, Any]]
     top_produtos: list[dict[str, Any]]
     top_campaigns: list[dict[str, Any]]
+    top_ctas: list[dict[str, Any]] = []

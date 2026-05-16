@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models.tracking import TrackingEvento, UtmLink
+from app.models.mkt import VendaHotmart
 from app.models.user import User
 from app.schemas.tracking import (
     StatLinha,
@@ -108,6 +109,131 @@ SNIPPET_JS = r"""
     opts.tipo = tipo;
     send(opts);
   };
+
+  // 4) Hotmart link rewriter — adiciona ?src=cn_aid:X|utm_*:Y nos links de checkout
+  //    Detecta automaticamente <a href> que aponta pra domínios da Hotmart e injeta
+  //    o tracking. Cliente só precisa do snippet — sem mudar HTML.
+  var HOTMART_HOSTS = [
+    'pay.hotmart.com',
+    'go.hotmart.com',
+    'app-vlc.hotmart.com',
+    'hotmart.com'
+  ];
+
+  function isHotmartUrl(href){
+    if(!href) return false;
+    try {
+      var u = new URL(href, window.location.href);
+      return HOTMART_HOSTS.some(function(h){
+        return u.hostname === h || u.hostname.endsWith('.' + h);
+      });
+    } catch(e){ return false; }
+  }
+
+  function buildSrcParam(){
+    // Formato chave:valor|chave:valor (Hotmart-friendly, sem caracteres especiais)
+    var utms = getUtms();
+    var parts = ['cn_aid:' + anonId];
+    ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
+      if(utms[k]) parts.push(k + ':' + String(utms[k]).replace(/[|:]/g,'-'));
+    });
+    return parts.join('|');
+  }
+
+  function rewriteHotmartLink(a){
+    if(!a || a.dataset.cnRewritten === '1') return;
+    var href = a.getAttribute('href');
+    if(!isHotmartUrl(href)) return;
+    try {
+      var u = new URL(href, window.location.href);
+      // não sobrescreve se cliente já definiu src=
+      if(u.searchParams.get('src')) { a.dataset.cnRewritten = '1'; return; }
+      u.searchParams.set('src', buildSrcParam());
+      a.setAttribute('href', u.toString());
+      a.dataset.cnRewritten = '1';
+    } catch(e){}
+  }
+
+  function rewriteAllHotmartLinks(){
+    var links = document.querySelectorAll('a[href]');
+    for(var i=0; i<links.length; i++) rewriteHotmartLink(links[i]);
+  }
+
+  // Função pública pra construir link manualmente em onclick
+  window.cenatBuildHotmartLink = function(url){
+    try {
+      var u = new URL(url, window.location.href);
+      u.searchParams.set('src', buildSrcParam());
+      return u.toString();
+    } catch(e){ return url; }
+  };
+
+  // Reescreve no carregamento inicial
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', rewriteAllHotmartLinks);
+  } else {
+    rewriteAllHotmartLinks();
+  }
+
+  // E observa novos links que sejam injetados depois (popups, modais, SPAs)
+  if(window.MutationObserver){
+    var obs = new MutationObserver(function(muts){
+      for(var i=0; i<muts.length; i++){
+        var m = muts[i];
+        for(var j=0; j<m.addedNodes.length; j++){
+          var node = m.addedNodes[j];
+          if(node.nodeType !== 1) continue;
+          if(node.tagName === 'A') rewriteHotmartLink(node);
+          else if(node.querySelectorAll){
+            var inner = node.querySelectorAll('a[href]');
+            for(var k=0; k<inner.length; k++) rewriteHotmartLink(inner[k]);
+          }
+        }
+      }
+    });
+    obs.observe(document.documentElement, {childList:true, subtree:true});
+  }
+
+  // 5) Click listener — injeta cta:<data-event> no src no momento do clique.
+  //    Capture phase pra rodar ANTES da navegação. Não bloqueia o evento.
+  document.addEventListener('click', function(ev){
+    // Busca o <a> mais próximo (clique pode ter sido no filho)
+    var node = ev.target;
+    var a = null;
+    while(node && node !== document){
+      if(node.tagName === 'A' && node.hasAttribute('href')){ a = node; break; }
+      node = node.parentNode;
+    }
+    if(!a) return;
+    var href = a.getAttribute('href');
+    if(!isHotmartUrl(href)) return;
+
+    // Pega data-event do <a> ou do ancestral mais próximo que tenha
+    var ctaName = null;
+    var n2 = a;
+    while(n2 && n2 !== document){
+      if(n2.dataset && n2.dataset.event){ ctaName = n2.dataset.event; break; }
+      n2 = n2.parentNode;
+    }
+    if(!ctaName) return; // sem data-event não injeta
+
+    try {
+      var u = new URL(href, window.location.href);
+      var existing = u.searchParams.get('src') || '';
+      // Sanitiza: remove caracteres que quebrariam o formato chave:valor|...
+      var clean = String(ctaName).replace(/[|:]/g, '-').slice(0, 60);
+      // Se já tem cta: no src, substitui; senão append
+      if(/(^|\|)cta:/.test(existing)){
+        existing = existing.replace(/(^|\|)cta:[^|]*/, '$1cta:' + clean);
+      } else if(existing){
+        existing = existing + '|cta:' + clean;
+      } else {
+        existing = 'cn_aid:' + anonId + '|cta:' + clean;
+      }
+      u.searchParams.set('src', existing);
+      a.setAttribute('href', u.toString());
+    } catch(e){}
+  }, true);
 })();
 """
 
@@ -233,7 +359,25 @@ async def get_stats(
 
     where_ = and_(*filtros)
 
-    # Totais
+    # ============================================================
+    # Vendas reais Hotmart (atribuídas via UTM com matched_via real)
+    # Janela = mesma janela do tracking (dias atrás)
+    # Só conta vendas APPROVED + COMPLETE com origem rastreada
+    # ============================================================
+    vendas_where = and_(
+        VendaHotmart.data_venda >= inicio,
+        VendaHotmart.status.in_(("APPROVED", "COMPLETE")),
+        VendaHotmart.matched_via.in_(("hotmart_anon_id", "hotmart_src", "email")),
+    )
+    # Filtros locais espelhando os do tracking
+    if utm_source:
+        vendas_where = and_(vendas_where, VendaHotmart.utm_source == utm_source)
+    if utm_campaign:
+        vendas_where = and_(vendas_where, VendaHotmart.utm_campaign == utm_campaign)
+    if produto:
+        vendas_where = and_(vendas_where, VendaHotmart.produto.ilike(f"%{produto}%"))
+
+    # Totais — tracking
     res = await db.execute(
         select(
             func.count().filter(TrackingEvento.tipo == "pageview").label("pv"),
@@ -248,7 +392,21 @@ async def get_stats(
     )
     row = res.one()
     pv, cl, cv, rev, uniq = row.pv or 0, row.cl or 0, row.cv or 0, row.rev or 0, row.uniq or 0
-    taxa = round((cv / pv * 100), 2) if pv else 0.0
+
+    # Totais — vendas Hotmart
+    res_v = await db.execute(
+        select(
+            func.count().label("vendas"),
+            func.coalesce(func.sum(VendaHotmart.faturamento_liquido), 0).label("rev_real"),
+        ).where(vendas_where)
+    )
+    row_v = res_v.one()
+    vendas_total = row_v.vendas or 0
+    receita_real = Decimal(row_v.rev_real or 0)
+    ticket_medio = (receita_real / vendas_total) if vendas_total > 0 else Decimal(0)
+
+    # Taxa de conversão: vendas reais / visitantes únicos
+    taxa = round((float(vendas_total) / uniq * 100), 2) if uniq else 0.0
 
     totais = StatTotais(
         pageviews=pv,
@@ -257,17 +415,23 @@ async def get_stats(
         receita=Decimal(rev),
         taxa_conversao=taxa,
         visitantes_unicos=uniq,
+        vendas=vendas_total,
+        receita_real=receita_real,
+        ticket_medio=ticket_medio,
     )
 
-    # Agregações
-    # NOTA: GROUP BY na coluna real (não no coalesce) — asyncpg gera placeholders
-    # bind diferentes pro mesmo literal e o Postgres rejeitaria coalesce(col, $1)
-    # vs coalesce(col, $N) como expressões distintas. NULL vira um grupo e o
-    # label "(direto)"/"(sem...)" é renderizado via coalesce só no SELECT.
-    async def agrega_por(coluna, label_default="(direto)"):
-        q = (
+    # ============================================================
+    # Helper: agrega tracking + vendas por uma coluna
+    # ============================================================
+    async def agrega_por(
+        coluna_tracking,
+        coluna_vendas,
+        label_default="(direto)",
+    ):
+        # 1) Agregação do tracking
+        q_t = (
             select(
-                func.coalesce(coluna, label_default).label("k"),
+                func.coalesce(coluna_tracking, label_default).label("k"),
                 func.count().filter(TrackingEvento.tipo == "pageview").label("pv"),
                 func.count().filter(TrackingEvento.tipo == "click").label("cl"),
                 func.count().filter(TrackingEvento.tipo == "conversion").label("cv"),
@@ -277,29 +441,68 @@ async def get_stats(
                 ).label("rev"),
             )
             .where(where_)
-            .group_by(coluna)
-            .order_by(func.count().desc())
-            .limit(20)
+            .group_by(coluna_tracking)
         )
-        r = await db.execute(q)
-        return [
-            StatLinha(
-                chave=str(x.k),
-                pageviews=x.pv or 0,
-                cliques=x.cl or 0,
-                conversoes=x.cv or 0,
-                receita=Decimal(x.rev or 0),
+        r_t = await db.execute(q_t)
+        linhas_t = {str(x.k): x for x in r_t.all()}
+
+        # 2) Agregação das vendas (Hotmart) — só roda se há coluna correspondente
+        linhas_v: dict[str, tuple[int, Decimal]] = {}
+        if coluna_vendas is not None:
+            q_v = (
+                select(
+                    func.coalesce(coluna_vendas, label_default).label("k"),
+                    func.count().label("vendas"),
+                    func.coalesce(func.sum(VendaHotmart.faturamento_liquido), 0).label("rev_real"),
+                )
+                .where(vendas_where)
+                .group_by(coluna_vendas)
             )
-            for x in r.all()
-        ]
+            r_v = await db.execute(q_v)
+            for x in r_v.all():
+                linhas_v[str(x.k)] = (x.vendas or 0, Decimal(x.rev_real or 0))
 
-    por_source = await agrega_por(TrackingEvento.utm_source)
-    por_campaign = await agrega_por(TrackingEvento.utm_campaign, "(sem campanha)")
+        # 3) Merge: união das chaves (tracking + vendas)
+        chaves = set(linhas_t.keys()) | set(linhas_v.keys())
+        out = []
+        for k in chaves:
+            t_row = linhas_t.get(k)
+            v_row = linhas_v.get(k, (0, Decimal(0)))
+            out.append(
+                StatLinha(
+                    chave=k,
+                    pageviews=t_row.pv if t_row else 0,
+                    cliques=t_row.cl if t_row else 0,
+                    conversoes=t_row.cv if t_row else 0,
+                    receita=Decimal(t_row.rev if t_row else 0),
+                    vendas=v_row[0],
+                    receita_real=v_row[1],
+                )
+            )
+        # Ordena: primeiro por receita real desc, depois por pageviews
+        out.sort(key=lambda r: (float(r.receita_real), r.pageviews), reverse=True)
+        return out[:20]
 
-    # Por produto (texto livre)
-    por_produto = await agrega_por(TrackingEvento.produto_nome, "(sem produto)")
+    por_source = await agrega_por(
+        TrackingEvento.utm_source, VendaHotmart.utm_source
+    )
+    por_campaign = await agrega_por(
+        TrackingEvento.utm_campaign, VendaHotmart.utm_campaign, "(sem campanha)"
+    )
+    por_produto = await agrega_por(
+        TrackingEvento.produto_nome, VendaHotmart.produto, "(sem produto)"
+    )
 
-    # Série diária
+    # Por CTA: tracking grava em evento_nome (data-event); Hotmart grava em cta
+    por_cta = await agrega_por(
+        TrackingEvento.evento_nome, VendaHotmart.cta, "(sem cta)"
+    )
+    # Filtra CTAs: só os que começam com "cta_" (ignora link_*, scroll_*, short_link:*)
+    por_cta = [c for c in por_cta if c.chave.startswith("cta_") or c.vendas > 0]
+
+    # ============================================================
+    # Série diária (tracking + vendas)
+    # ============================================================
     dia = func.date_trunc("day", TrackingEvento.created_at)
     q_serie = (
         select(
@@ -317,21 +520,52 @@ async def get_stats(
         .order_by(dia)
     )
     r_serie = await db.execute(q_serie)
-    serie = [
-        StatSerie(
-            data=x.d.date().isoformat() if isinstance(x.d, datetime) else str(x.d),
-            pageviews=x.pv or 0,
-            cliques=x.cl or 0,
-            conversoes=x.cv or 0,
-            receita=Decimal(x.rev or 0),
-        )
+    serie_t = {
+        (x.d.date().isoformat() if isinstance(x.d, datetime) else str(x.d)): x
         for x in r_serie.all()
-    ]
+    }
+
+    # Vendas por dia
+    dia_v = func.date_trunc("day", VendaHotmart.data_venda)
+    q_serie_v = (
+        select(
+            dia_v.label("d"),
+            func.count().label("vendas"),
+            func.coalesce(func.sum(VendaHotmart.faturamento_liquido), 0).label("rev_real"),
+        )
+        .where(vendas_where)
+        .group_by(dia_v)
+        .order_by(dia_v)
+    )
+    r_serie_v = await db.execute(q_serie_v)
+    serie_v = {
+        (x.d.date().isoformat() if isinstance(x.d, datetime) else str(x.d)): x
+        for x in r_serie_v.all()
+    }
+
+    # Merge das duas séries
+    dias_all = sorted(set(serie_t.keys()) | set(serie_v.keys()))
+    serie = []
+    for d in dias_all:
+        t_row = serie_t.get(d)
+        v_row = serie_v.get(d)
+        serie.append(
+            StatSerie(
+                data=d,
+                pageviews=t_row.pv if t_row else 0,
+                cliques=t_row.cl if t_row else 0,
+                conversoes=t_row.cv if t_row else 0,
+                receita=Decimal(t_row.rev if t_row else 0),
+                vendas=v_row.vendas if v_row else 0,
+                receita_real=Decimal(v_row.rev_real if v_row else 0),
+            )
+        )
 
     return StatsResponse(
         totais=totais,
         por_source=por_source,
         por_campaign=por_campaign,
         por_produto=por_produto,
+        por_cta=por_cta,
         serie_diaria=serie,
     )

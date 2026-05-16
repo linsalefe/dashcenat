@@ -11,7 +11,15 @@ import { api, ApiError } from "@/lib/api";
 interface LoginResponse {
   access_token: string;
   token_type: string;
-  user: { id: string; email: string; nome: string; ativo: boolean };
+  user: {
+    id: string;
+    email: string;
+    nome: string;
+    ativo: boolean;
+    papel: string;
+    ultimo_acesso?: string | null;
+    criado_em?: string | null;
+  };
 }
 
 export default function LoginPage() {
@@ -27,7 +35,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (t) router.push("/overview");
+    if (t) router.replace("/overview");
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,7 +46,7 @@ export default function LoginPage() {
       const data = await api.post<LoginResponse>("/auth/login", { email, senha: password });
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      router.push("/overview");
+      router.replace("/overview");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Email ou senha incorretos";
       setError(msg);

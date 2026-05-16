@@ -315,6 +315,25 @@ async def get_stats(
         for x in r_cmp.all()
     ]
 
+    # Top CTAs (qual botão da LP originou a venda)
+    q_cta = (
+        select(
+            VendaHotmart.cta,
+            func.count().label("vendas"),
+            func.coalesce(func.sum(VendaHotmart.faturamento_liquido), 0).label("receita"),
+        )
+        .where(where)
+        .where(VendaHotmart.cta.isnot(None))
+        .group_by(VendaHotmart.cta)
+        .order_by(func.sum(VendaHotmart.faturamento_liquido).desc().nulls_last())
+        .limit(10)
+    )
+    r_cta = await db.execute(q_cta)
+    top_ctas = [
+        {"cta": x.cta, "vendas": x.vendas or 0, "receita": float(x.receita or 0)}
+        for x in r_cta.all()
+    ]
+
     return HotmartStats(
         receita_total=receita,
         vendas_count=count,
@@ -323,4 +342,5 @@ async def get_stats(
         receita_por_dia=receita_por_dia,
         top_produtos=top_produtos,
         top_campaigns=top_campaigns,
+        top_ctas=top_ctas,
     )
