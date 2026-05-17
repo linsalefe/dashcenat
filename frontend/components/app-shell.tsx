@@ -46,12 +46,14 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { InstagramLogo } from "@/components/icons/instagram-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
-type MenuItem = { href: string; label: string; icon: LucideIcon };
+type IconComponent = LucideIcon | React.ComponentType<React.SVGProps<SVGSVGElement> & { strokeWidth?: number }>;
+type MenuItem = { href: string; label: string; icon: IconComponent };
 
 const menuGroups: { label: string; items: MenuItem[] }[] = [
   {
@@ -76,6 +78,8 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
       { href: "/marketing/tracking", label: "Tracking (GA)", icon: BarChart3 },
       { href: "/marketing/tracking/utm", label: "Gerador UTM", icon: Link2 },
       { href: "/marketing/hotmart", label: "Hotmart", icon: ShoppingBag },
+      { href: "/marketing/meta-ads", label: "Meta Ads", icon: Megaphone },
+      { href: "/marketing/instagram", label: "Instagram", icon: InstagramLogo },
       { href: "/marketing/pos", label: "Pós-Graduação", icon: GraduationCap },
       { href: "/marketing/pos-mkt", label: "Pós - Mkt", icon: Megaphone },
       { href: "/marketing/congressos", label: "Congressos", icon: Calendar },
@@ -267,6 +271,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/marketing/tracking": "Tracking (GA)",
   "/marketing/tracking/utm": "Gerador UTM",
   "/marketing/hotmart": "Hotmart",
+  "/marketing/meta-ads": "Meta Ads",
+  "/marketing/instagram": "Instagram",
   "/comercial/intercambio": "Intercâmbio",
   "/configuracoes/import": "Importar planilhas",
   "/configuracoes/usuarios": "Usuários",

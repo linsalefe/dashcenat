@@ -13,8 +13,10 @@ from app.api.v1 import (
     frente_periodo,
     funil_mensal,
     hotmart,
+    instagram,
     intercambio,
     lancamentos,
+    meta_ads,
     overview,
     tracking,
     usuarios,
@@ -92,6 +94,8 @@ app.include_router(funil_mensal.router, prefix="/api/v1")
 app.include_router(tracking.router, prefix="/api/v1")
 app.include_router(utm.router, prefix="/api/v1")
 app.include_router(hotmart.router, prefix="/api/v1")
+app.include_router(meta_ads.router, prefix="/api/v1")
+app.include_router(instagram.router, prefix="/api/v1")
 app.include_router(usuarios.router, prefix="/api/v1/usuarios", tags=["usuarios"])
 
 

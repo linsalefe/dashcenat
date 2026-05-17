@@ -301,3 +301,306 @@ class FunilMensal(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+
+# ============================================================
+# Sprint Meta Ads — Sync diário via Meta Marketing API v21.0
+# ============================================================
+
+class MetaAdsInsight(Base):
+    """Linha diária de insights por (campanha, adset, ad) vinda da Meta Marketing API.
+
+    Uniqueness por dia + conta + (campaign, adset, ad). adset_id/ad_id são NOT NULL
+    com default '' pra permitir UNIQUE direto nas colunas (sem COALESCE) e ON CONFLICT
+    estável via SQLAlchemy.
+    """
+    __tablename__ = "meta_ads_insights"
+    __table_args__ = (
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    ad_account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    campaign_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    campaign_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    objetivo: Mapped[str | None] = mapped_column(String(64))  # OUTCOME_SALES | OUTCOME_LEADS | ...
+    status: Mapped[str | None] = mapped_column(String(32))    # ACTIVE | PAUSED | ...
+    adset_id: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
+    adset_name: Mapped[str | None] = mapped_column(String(255))
+    ad_id: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
+    ad_name: Mapped[str | None] = mapped_column(String(255))
+
+    # ----- Mídia -----
+    spend: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    impressions: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    clicks: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    ctr: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    cpc: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    cpm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    frequency: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+
+    # ----- Funil (de actions) -----
+    landing_page_views: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    initiate_checkout: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    purchases: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    purchase_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, server_default=text("0"))
+    complete_registration: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    # ----- Conversões customizadas -----
+    # Dict por custom_conversion_id: {"123": {"name": "...", "count": N, "value": V}}
+    custom_conversions: Mapped[dict | None] = mapped_column(JSONB)
+    custom_conversions_total: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+
+    # Mapping pra cruzar com tracking interno (slug do nome da campanha)
+    utm_campaign_inferido: Mapped[str | None] = mapped_column(String(255))
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+# ============================================================
+# Sprint Instagram Graph — Sync de conta orgânica + posts + audiência
+# ============================================================
+
+class InstagramAccountDaily(Base):
+    """Snapshot diário do perfil + métricas agregadas da conta IG."""
+    __tablename__ = "instagram_account_daily"
+    __table_args__ = (
+        UniqueConstraint("ig_user_id", "data", name="uq_ig_account_daily"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ig_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    username: Mapped[str | None] = mapped_column(String(64))
+
+    followers_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    follows_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    media_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    profile_views: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    website_clicks: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    accounts_engaged: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_interactions: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    comments: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    shares: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    saves: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    replies: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    follows_gained: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramPost(Base):
+    """1 linha por mídia publicada (post/reel/carrossel). Métricas lifetime."""
+    __tablename__ = "instagram_posts"
+    __table_args__ = (
+        UniqueConstraint("media_id", name="uq_ig_posts"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ig_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    media_id: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    media_product_type: Mapped[str | None] = mapped_column(String(32))
+    caption: Mapped[str | None] = mapped_column(Text)
+    permalink: Mapped[str | None] = mapped_column(Text)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text)
+    media_url: Mapped[str | None] = mapped_column(Text)
+    timestamp_publicacao: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    views: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    comments: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    shares: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    saved: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_interactions: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    profile_visits: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    profile_activity: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    follows: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    ig_reels_video_view_total_time: Mapped[int | None] = mapped_column(BigInteger)
+    ig_reels_avg_watch_time: Mapped[int | None] = mapped_column(Integer)
+    plays: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    clips_replays_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    ultimo_snapshot_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramPostSnapshot(Base):
+    """Histórico de métricas por post — 1 linha por (media_id, data)."""
+    __tablename__ = "instagram_post_snapshots"
+    __table_args__ = (
+        UniqueConstraint("media_id", "data", name="uq_ig_post_snapshots"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    media_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    views: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    comments: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    shares: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    saved: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_interactions: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    profile_visits: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    follows: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramAudience(Base):
+    """Demografia (gender_age | country | city | locale). Atualiza semanalmente."""
+    __tablename__ = "instagram_audience"
+    __table_args__ = (
+        UniqueConstraint(
+            "ig_user_id", "data", "breakdown", "chave", name="uq_ig_audience"
+        ),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ig_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    breakdown: Mapped[str] = mapped_column(String(32), nullable=False)
+    chave: Mapped[str] = mapped_column(String(128), nullable=False)
+    valor: Mapped[int] = mapped_column(Integer, nullable=False)
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramStory(Base):
+    """Stories ativos (expiram em 24h). Snapshot final antes do reset."""
+    __tablename__ = "instagram_stories"
+    __table_args__ = (
+        UniqueConstraint("story_id", name="uq_ig_stories"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    ig_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    story_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text)
+    media_url: Mapped[str | None] = mapped_column(Text)
+    permalink: Mapped[str | None] = mapped_column(Text)
+    timestamp_publicacao: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    replies: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    taps_forward: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    taps_back: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    exits: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    swipe_forward: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+
+    retencao_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    ultimo_snapshot_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramPostHashtag(Base):
+    """Hashtag extraída da caption — 1 linha por (post, hashtag)."""
+    __tablename__ = "instagram_post_hashtags"
+    __table_args__ = (
+        UniqueConstraint("media_id", "hashtag", name="uq_ig_post_hashtag"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    media_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    hashtag: Mapped[str] = mapped_column(String(128), nullable=False)
+    posicao: Mapped[int] = mapped_column(Integer, nullable=False)
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InstagramPostHourlySnapshot(Base):
+    """Snapshot horário pra calcular velocidade de viralização (1h/6h/24h/48h)."""
+    __tablename__ = "instagram_post_hourly_snapshots"
+    __table_args__ = (
+        UniqueConstraint("media_id", "snapshot_em", name="uq_ig_post_hourly_snap"),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    media_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    horas_pos_publicacao: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    reach: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    views: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    comments: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    shares: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    saved: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_interactions: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+
+
+class MetaCustomConversion(Base):
+    """Cadastro de Custom Conversions da Meta Ads — usado pra contar 'resultados' em leads."""
+    __tablename__ = "meta_custom_conversions"
+    __table_args__ = (
+        UniqueConstraint(
+            "custom_conversion_id", "ad_account_id", name="uq_meta_custom_conv"
+        ),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    custom_conversion_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    ad_account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    custom_event_type: Mapped[str | None] = mapped_column(String(64))
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    sincronizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

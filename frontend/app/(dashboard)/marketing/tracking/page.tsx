@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Sparkles,
   ArrowUpRight,
   Globe2,
@@ -37,6 +38,12 @@ import {
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import {
+  DateRangePicker,
+  type DateRange,
+  dateRangeHelpers,
+  presetRange,
+} from "@/components/date-range-picker";
 
 interface StatTotais {
   pageviews: number;
@@ -76,11 +83,28 @@ interface StatsResponse {
   serie_diaria: StatSerie[];
 }
 
-const PERIODOS = [
-  { dias: 7, label: "7d" },
-  { dias: 30, label: "30d" },
-  { dias: 90, label: "90d" },
-];
+interface MetaCampanha {
+  campaign_name: string;
+  spend: number;
+  purchase_value: number;
+  roas: number | null;
+}
+
+interface MetaStatsResponse {
+  campanhas_vendas: { campaign_name: string; spend: number; purchase_value: number; roas: number | null }[];
+  campanhas_leads: { campaign_name: string; spend: number; purchase_value: number; roas: number | null }[];
+}
+
+// Igual ao slugify_campaign do backend Python — mantém compatibilidade
+function slugifyCampanha(s: string): string {
+  if (!s) return "";
+  return s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
 const brl = (v: number) =>
   (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -93,15 +117,67 @@ const brlShort = (v: number) => {
 
 export default function TrackingPage() {
   const router = useRouter();
-  const [dias, setDias] = useState(30);
+  // Default: "Este mês"
+  const [range, setRange] = useState<DateRange>(() => presetRange("este_mes"));
   const [data, setData] = useState<StatsResponse | null>(null);
+  const [metaMap, setMetaMap] = useState<Record<string, MetaCampanha>>({});
+  const [filtroRoasNeg, setFiltroRoasNeg] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const rangeIso = useMemo(
+    () => ({
+      since: dateRangeHelpers.isoDate(range.since),
+      until: dateRangeHelpers.isoDate(range.until),
+    }),
+    [range],
+  );
 
   async function load() {
     setLoading(true);
     try {
-      const res = await api.get<StatsResponse>(`/track/stats?dias=${dias}`);
-      setData(res);
+      const qs = `since=${rangeIso.since}&until=${rangeIso.until}`;
+
+      const [trackRes, metaRes] = await Promise.all([
+        api.get<StatsResponse>(`/track/stats?${qs}`),
+        api
+          .get<MetaStatsResponse>(`/meta-ads/stats?${qs}`)
+          .catch(() => null),
+      ]);
+
+      setData(trackRes);
+
+      // Merge client-side: slug do campaign_name (Meta) → spend/roas
+      const map: Record<string, MetaCampanha> = {};
+      if (metaRes) {
+        const todas = [
+          ...(metaRes.campanhas_vendas || []),
+          ...(metaRes.campanhas_leads || []),
+        ];
+        for (const c of todas) {
+          const slug = slugifyCampanha(c.campaign_name);
+          if (!slug) continue;
+          // Se houver colisão de slug, somar (mesma campanha em ad accounts diferentes)
+          const prev = map[slug];
+          if (prev) {
+            const spend = Number(prev.spend) + Number(c.spend);
+            const receita = Number(prev.purchase_value) + Number(c.purchase_value);
+            map[slug] = {
+              campaign_name: prev.campaign_name,
+              spend,
+              purchase_value: receita,
+              roas: spend > 0 ? receita / spend : null,
+            };
+          } else {
+            map[slug] = {
+              campaign_name: c.campaign_name,
+              spend: Number(c.spend),
+              purchase_value: Number(c.purchase_value),
+              roas: c.roas,
+            };
+          }
+        }
+      }
+      setMetaMap(map);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro ao carregar stats";
       toast.error(msg);
@@ -113,7 +189,7 @@ export default function TrackingPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dias]);
+  }, [rangeIso.since, rangeIso.until]);
 
   const t = data?.totais;
 
@@ -150,19 +226,7 @@ export default function TrackingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 rounded-md border bg-muted/30 p-1">
-            {PERIODOS.map((p) => (
-              <Button
-                key={p.dias}
-                size="sm"
-                variant={dias === p.dias ? "default" : "ghost"}
-                onClick={() => setDias(p.dias)}
-                className="h-7 px-3"
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
+          <DateRangePicker value={range} onChange={(r) => setRange(r)} />
         </div>
       </div>
 
@@ -244,7 +308,7 @@ export default function TrackingPage() {
           <div>
             <h3 className="text-sm font-medium">Série diária</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Tráfego (esquerda) vs vendas atribuídas (direita) — últimos {dias} dias
+              Tráfego (esquerda) vs vendas atribuídas (direita) — {rangeIso.since} → {rangeIso.until}
             </p>
           </div>
           <div className="flex gap-3 text-xs">
@@ -281,7 +345,13 @@ export default function TrackingPage() {
       {/* ====== Tabelas por dimensão ====== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <TabelaAgreg titulo="Por canal (utm_source)" linhas={data?.por_source ?? []} icon={Globe2} onClickLinha={(c) => abrirDetalhe("source", c)} />
-        <TabelaAgreg titulo="Por campanha (utm_campaign)" linhas={data?.por_campaign ?? []} icon={ShoppingCart} onClickLinha={(c) => abrirDetalhe("campaign", c)} />
+        <TabelaCampanhas
+          linhas={data?.por_campaign ?? []}
+          metaMap={metaMap}
+          filtroRoasNeg={filtroRoasNeg}
+          onToggleRoasNeg={() => setFiltroRoasNeg((v) => !v)}
+          onClickLinha={(c) => abrirDetalhe("campaign", c)}
+        />
         <TabelaAgreg titulo="Por produto" linhas={data?.por_produto ?? []} icon={ShoppingCart} onClickLinha={(c) => abrirDetalhe("produto", c)} />
       </div>
 
@@ -422,6 +492,150 @@ function TabelaAgreg({
                       {clicavel && <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />}
                     </TableCell>
                   )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================
+// Tabela de campanhas com merge Meta Ads (Gasto + ROAS)
+// ============================================================
+
+function TabelaCampanhas({
+  linhas,
+  metaMap,
+  filtroRoasNeg,
+  onToggleRoasNeg,
+  onClickLinha,
+}: {
+  linhas: StatLinha[];
+  metaMap: Record<string, MetaCampanha>;
+  filtroRoasNeg: boolean;
+  onToggleRoasNeg: () => void;
+  onClickLinha: (chave: string) => void;
+}) {
+  const placeholders = new Set(["(sem campanha)"]);
+
+  // Anexar gasto/roas (slug do utm_campaign do tracking vs slug do Meta)
+  const enriquecidas = useMemo(() => {
+    return linhas.map((l) => {
+      const meta = metaMap[slugifyCampanha(l.chave)];
+      const gasto = meta?.spend ?? null;
+      const receita = l.receita_real || 0;
+      // ROAS no contexto de tracking = receita atribuída no tracking / gasto Meta
+      const roas = gasto && gasto > 0 ? receita / gasto : null;
+      return { ...l, gasto, roas };
+    });
+  }, [linhas, metaMap]);
+
+  const finalLinhas = useMemo(() => {
+    if (!filtroRoasNeg) return enriquecidas;
+    return enriquecidas.filter((l) => l.roas != null && l.roas < 1);
+  }, [enriquecidas, filtroRoasNeg]);
+
+  const totalMatched = useMemo(
+    () => enriquecidas.filter((l) => l.gasto != null).length,
+    [enriquecidas],
+  );
+
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-medium">Por campanha (utm_campaign)</h3>
+        </div>
+        <button
+          onClick={onToggleRoasNeg}
+          className={
+            "text-[10px] px-2 py-1 rounded border transition-colors " +
+            (filtroRoasNeg
+              ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/40"
+              : "border-border text-muted-foreground hover:text-foreground")
+          }
+          title="Mostrar só campanhas com ROAS < 1 (prejuízo)"
+        >
+          <TrendingDown className="inline-block w-3 h-3 mr-1" />
+          ROAS &lt; 1
+        </button>
+      </div>
+      <p className="text-[11px] text-muted-foreground -mt-2 mb-2">
+        {totalMatched > 0
+          ? `${totalMatched} campanha${totalMatched !== 1 ? "s" : ""} cruzada${totalMatched !== 1 ? "s" : ""} com Meta Ads`
+          : "Sem cruzamento com Meta Ads no período"}
+      </p>
+      <div className="max-h-[380px] overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Chave</TableHead>
+              <TableHead className="text-right w-[60px]">PV</TableHead>
+              <TableHead className="text-right w-[60px]">Vendas</TableHead>
+              <TableHead className="text-right w-[90px]">Receita</TableHead>
+              <TableHead className="text-right w-[90px]">Gasto</TableHead>
+              <TableHead className="text-right w-[70px]">ROAS</TableHead>
+              <TableHead className="w-[24px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {finalLinhas.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8 text-sm">
+                  {filtroRoasNeg ? "Nenhuma campanha com ROAS < 1" : "Sem dados no período"}
+                </TableCell>
+              </TableRow>
+            )}
+            {finalLinhas.map((l) => {
+              const isPlaceholder = placeholders.has(l.chave);
+              const clicavel = !isPlaceholder && l.vendas > 0;
+              const roasClass =
+                l.roas == null
+                  ? "text-muted-foreground"
+                  : l.roas < 1
+                  ? "text-red-700 dark:text-red-400 font-medium"
+                  : l.roas >= 2
+                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                  : "";
+              return (
+                <TableRow
+                  key={l.chave}
+                  className={clicavel ? "cursor-pointer hover:bg-muted/40" : ""}
+                  onClick={() => clicavel && onClickLinha(l.chave)}
+                >
+                  <TableCell
+                    className={
+                      "font-medium truncate max-w-[180px] " +
+                      (isPlaceholder ? "text-muted-foreground italic" : "")
+                    }
+                    title={l.chave}
+                  >
+                    {l.chave}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{l.pageviews}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.vendas > 0 ? (
+                      <span className="font-medium text-emerald-700 dark:text-emerald-400">{l.vendas}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.receita_real > 0 ? brlShort(Number(l.receita_real)) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.gasto != null && l.gasto > 0 ? brlShort(l.gasto) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className={`text-right tabular-nums ${roasClass}`}>
+                    {l.roas == null ? "—" : `${l.roas.toFixed(2)}x`}
+                  </TableCell>
+                  <TableCell>
+                    {clicavel && <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </TableCell>
                 </TableRow>
               );
             })}

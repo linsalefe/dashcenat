@@ -1,14 +1,19 @@
-"""Scheduler async — jobs recorrentes do sistema (cron Hotmart, futuramente Meta, etc.)."""
+"""Scheduler async — jobs recorrentes do sistema (Hotmart diário, Meta Ads horário)."""
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.core.db import async_session
 from app.etl.hotmart_sync import sync_hotmart
+from app.etl.instagram_sync import (
+    sync_instagram_recente,
+    sync_instagram_stories_only,
+)
+from app.etl.meta_ads_sync import sync_meta_ads_recente
 
 log = logging.getLogger("scheduler")
 
@@ -30,6 +35,39 @@ async def _job_hotmart_diario():
             log.exception("Job hotmart_diario falhou: %s", e)
 
 
+async def _job_meta_ads_horario():
+    """Roda a cada 1h. Sincroniza últimos 7 dias da Meta Ads."""
+    log.info("Job meta_ads_horario iniciando")
+    async with async_session() as db:
+        try:
+            res = await sync_meta_ads_recente(db)
+            log.info("Job meta_ads_horario ok: %s", res)
+        except Exception as e:
+            log.exception("Job meta_ads_horario falhou: %s", e)
+
+
+async def _job_instagram_6h():
+    """Roda a cada 6h. Sincroniza últimos 7 dias do Instagram orgânico."""
+    log.info("Job instagram_6h iniciando")
+    async with async_session() as db:
+        try:
+            res = await sync_instagram_recente(db)
+            log.info("Job instagram_6h ok: %s", res)
+        except Exception as e:
+            log.exception("Job instagram_6h falhou: %s", e)
+
+
+async def _job_instagram_stories_2h():
+    """Roda a cada 2h. Só stories ativos (expiram em 24h)."""
+    log.info("Job instagram_stories_2h iniciando")
+    async with async_session() as db:
+        try:
+            res = await sync_instagram_stories_only(db)
+            log.info("Job instagram_stories_2h ok: %s", res)
+        except Exception as e:
+            log.exception("Job instagram_stories_2h falhou: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -43,9 +81,39 @@ def start_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    sched.add_job(
+        _job_meta_ads_horario,
+        trigger="interval",
+        hours=1,
+        id="meta_ads_horario",
+        replace_existing=True,
+        next_run_time=datetime.now(tz=timezone.utc) + timedelta(minutes=5),
+        misfire_grace_time=900,
+    )
+    sched.add_job(
+        _job_instagram_6h,
+        trigger="interval",
+        hours=6,
+        id="instagram_6h",
+        replace_existing=True,
+        next_run_time=datetime.now(tz=timezone.utc) + timedelta(minutes=10),
+        misfire_grace_time=1800,
+    )
+    sched.add_job(
+        _job_instagram_stories_2h,
+        trigger="interval",
+        hours=2,
+        id="instagram_stories_2h",
+        replace_existing=True,
+        next_run_time=datetime.now(tz=timezone.utc) + timedelta(minutes=15),
+        misfire_grace_time=600,
+    )
     sched.start()
     _scheduler = sched
-    log.info("Scheduler iniciado com job hotmart_diario (03:00 UTC)")
+    log.info(
+        "Scheduler iniciado: hotmart_diario (03:00 UTC) + meta_ads_horario (1h) "
+        "+ instagram_6h (6h) + instagram_stories_2h (2h)"
+    )
     return sched
 
 

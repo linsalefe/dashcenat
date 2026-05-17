@@ -343,13 +343,28 @@ async def get_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     dias: int = Query(30, ge=1, le=365),
+    since: date | None = Query(None),
+    until: date | None = Query(None),
     utm_source: str | None = None,
     utm_campaign: str | None = None,
     produto: str | None = None,
 ):
-    inicio = datetime.utcnow() - timedelta(days=dias)
+    # since/until têm precedência sobre dias. Se só since vier, until=hoje.
+    # Se só until vier, since = until - dias.
+    if since or until:
+        if not until:
+            until = date.today()
+        if not since:
+            since = until - timedelta(days=dias)
+        inicio = datetime.combine(since, datetime.min.time())
+        fim = datetime.combine(until, datetime.max.time())
+    else:
+        inicio = datetime.utcnow() - timedelta(days=dias)
+        fim = None
 
     filtros = [TrackingEvento.created_at >= inicio]
+    if fim is not None:
+        filtros.append(TrackingEvento.created_at <= fim)
     if utm_source:
         filtros.append(TrackingEvento.utm_source == utm_source)
     if utm_campaign:
@@ -369,6 +384,8 @@ async def get_stats(
         VendaHotmart.status.in_(("APPROVED", "COMPLETE")),
         VendaHotmart.matched_via.in_(("hotmart_anon_id", "hotmart_src", "email")),
     )
+    if fim is not None:
+        vendas_where = and_(vendas_where, VendaHotmart.data_venda <= fim)
     # Filtros locais espelhando os do tracking
     if utm_source:
         vendas_where = and_(vendas_where, VendaHotmart.utm_source == utm_source)
