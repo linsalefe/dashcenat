@@ -8,6 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.core.db import async_session
+from app.etl.doity_sync import sync_doity_todos
+from app.etl.exact_sales_sync import sync_exact_sales_incremental
 from app.etl.hotmart_sync import sync_hotmart
 from app.etl.instagram_sync import (
     sync_instagram_recente,
@@ -68,6 +70,31 @@ async def _job_instagram_stories_2h():
             log.exception("Job instagram_stories_2h falhou: %s", e)
 
 
+async def _job_doity_diario():
+    """Roda às 04:00 UTC (01:00 BRT). Sincroniza incremental por cursor (rodadas de
+    até 8 págs). Como uso é incremental, 1×/dia basta pra análise; pode subir a
+    frequência se quiser acompanhamento intradiário.
+    """
+    log.info("Job doity_diario iniciando")
+    async with async_session() as db:
+        try:
+            res = await sync_doity_todos(db)
+            log.info("Job doity_diario ok: %s", res)
+        except Exception as e:
+            log.exception("Job doity_diario falhou: %s", e)
+
+
+async def _job_exact_sales_1h():
+    """Roda a cada 1h. Sincroniza incremental do Exact Spotter."""
+    log.info("Job exact_sales_1h iniciando")
+    async with async_session() as db:
+        try:
+            res = await sync_exact_sales_incremental(db)
+            log.info("Job exact_sales_1h ok: %s", res)
+        except Exception as e:
+            log.exception("Job exact_sales_1h falhou: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -108,11 +135,28 @@ def start_scheduler() -> AsyncIOScheduler:
         next_run_time=datetime.now(tz=timezone.utc) + timedelta(minutes=15),
         misfire_grace_time=600,
     )
+    sched.add_job(
+        _job_exact_sales_1h,
+        trigger="interval",
+        hours=1,
+        id="exact_sales_1h",
+        replace_existing=True,
+        next_run_time=datetime.now(tz=timezone.utc) + timedelta(minutes=10),
+        misfire_grace_time=1800,
+    )
+    sched.add_job(
+        _job_doity_diario,
+        trigger=CronTrigger(hour=4, minute=0),  # 04:00 UTC = 01:00 BRT
+        id="doity_diario",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
     sched.start()
     _scheduler = sched
     log.info(
         "Scheduler iniciado: hotmart_diario (03:00 UTC) + meta_ads_horario (1h) "
-        "+ instagram_6h (6h) + instagram_stories_2h (2h)"
+        "+ instagram_6h (6h) + instagram_stories_2h (2h) + exact_sales_1h (1h) "
+        "+ doity_diario (04:00 UTC)"
     )
     return sched
 

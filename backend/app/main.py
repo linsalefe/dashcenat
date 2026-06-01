@@ -9,7 +9,9 @@ from app.api.v1 import (
     auth,
     catalogo,
     comercial,
+    doity,
     etl,
+    exact_sales,
     frente_periodo,
     funil_mensal,
     hotmart,
@@ -96,6 +98,9 @@ app.include_router(utm.router, prefix="/api/v1")
 app.include_router(hotmart.router, prefix="/api/v1")
 app.include_router(meta_ads.router, prefix="/api/v1")
 app.include_router(instagram.router, prefix="/api/v1")
+app.include_router(exact_sales.router, prefix="/api/v1")
+app.include_router(doity.router, prefix="/api/v1")
+app.include_router(doity.eventos_router, prefix="/api/v1")
 app.include_router(usuarios.router, prefix="/api/v1/usuarios", tags=["usuarios"])
 
 

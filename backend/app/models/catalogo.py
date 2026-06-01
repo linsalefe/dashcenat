@@ -9,10 +9,11 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     ForeignKey,
     text,
 )
-from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, pk_uuid
@@ -76,4 +77,21 @@ class Evento(Base):
     ativo: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
+    )
+
+    # ----- Origem Doity (API pública, somente leitura, polling incremental) -----
+    # Token é por CONTA Doity (não por evento), mas eventos de contas diferentes
+    # exigem tokens diferentes — guardamos cifrado por evento.
+    doity_event_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    doity_credentials_cifradas: Mapped[str | None] = mapped_column(Text)
+    doity_situacoes_pagas: Mapped[list] = mapped_column(
+        JSONB, server_default=text("'[1, 4]'::jsonb"), nullable=False
+    )
+    doity_campo_whatsapp: Mapped[str | None] = mapped_column(String(200))
+    doity_cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    doity_ultimo_sync: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    doity_ultimo_sync_status: Mapped[str | None] = mapped_column(String(50))
+    doity_ultimo_sync_erro: Mapped[str | None] = mapped_column(Text)
+    doity_ultimo_sync_total: Mapped[int] = mapped_column(
+        Integer, server_default=text("0"), nullable=False
     )

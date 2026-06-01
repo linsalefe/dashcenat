@@ -584,6 +584,71 @@ class InstagramPostHourlySnapshot(Base):
     )
 
 
+class VendaDoity(Base):
+    """1 inscrição/venda de congresso vinda da API pública Doity.
+
+    Idempotente por (evento_id, doity_participante_id). Sync incremental por cursor
+    `data_atualizacao`. Pago = situacao.codigo in evento.doity_situacoes_pagas
+    (default [1, 4]). Cod 13 = chargeback → em_contestacao=true, pago=false.
+    """
+    __tablename__ = "vendas_doity"
+    __table_args__ = (
+        UniqueConstraint(
+            "evento_id", "doity_participante_id", name="uq_vendas_doity_evento_part"
+        ),
+        {"schema": "mkt"},
+    )
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    evento_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("core.eventos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    doity_participante_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    nome: Mapped[str | None] = mapped_column(String(300))
+    pago: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
+    em_contestacao: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
+    situacao_codigo: Mapped[int | None] = mapped_column(Integer)
+    situacao_descricao: Mapped[str | None] = mapped_column(String(100))
+
+    valor_pago: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    valor_recebido: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    forma_pagamento: Mapped[str | None] = mapped_column(String(100))
+
+    data_inscricao: Mapped[date | None] = mapped_column(Date)
+
+    comprador_email: Mapped[str | None] = mapped_column(String(200))
+    comprador_telefone: Mapped[str | None] = mapped_column(String(30))
+    comprador_cpf: Mapped[str | None] = mapped_column(String(20))
+
+    whatsapp: Mapped[str | None] = mapped_column(String(30))
+    cidade: Mapped[str | None] = mapped_column(String(120))
+    estado: Mapped[str | None] = mapped_column(String(10))
+    profissao: Mapped[str | None] = mapped_column(String(200))
+    genero: Mapped[str | None] = mapped_column(String(50))
+
+    lote_id: Mapped[int | None] = mapped_column(Integer)
+    lote_nome: Mapped[str | None] = mapped_column(String(200))
+
+    raw: Mapped[dict | None] = mapped_column(JSONB)
+    data_atualizacao_doity: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+
+
 class MetaCustomConversion(Base):
     """Cadastro de Custom Conversions da Meta Ads — usado pra contar 'resultados' em leads."""
     __tablename__ = "meta_custom_conversions"
