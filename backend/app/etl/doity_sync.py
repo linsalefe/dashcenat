@@ -11,7 +11,7 @@ Estratégia (validada nos testes da API):
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select, update
@@ -47,7 +47,7 @@ def _decifrar_token(evento: Evento) -> str | None:
 
 
 def _mapear_participante(
-    evento: Evento,
+    evento_id: Any,
     participante: dict[str, Any],
     situacoes_pagas: tuple[int, ...],
 ) -> dict[str, Any] | None:
@@ -97,7 +97,7 @@ def _mapear_participante(
     telefone_norm = normalizar_telefone_br(comprador.get("telefone"))
 
     return {
-        "evento_id": evento.id,
+        "evento_id": evento_id,
         "doity_participante_id": pid,
         "nome": (participante.get("nome") or comprador.get("nome") or None),
         "pago": bool(pago),
@@ -163,13 +163,20 @@ async def sync_doity_evento(
     do cursor atual; avança o cursor pro maior data_atualizacao visto; para quando
     não vier nenhum participante novo numa rodada com ≥1 página lida.
     """
-    if not evento.doity_event_id:
+    # Captura tudo no início — após commits/rollback, o objeto ORM pode estar
+    # expired e acessar atributos triggera I/O síncrono (MissingGreenlet).
+    evento_id = evento.id
+    doity_event_id = evento.doity_event_id
+
+    if not doity_event_id:
         await _gravar_status(db, evento, status="sem_event_id", erro=None, total=None)
+        await db.commit()
         return {"ok": False, "motivo": "sem doity_event_id"}
 
     token = _decifrar_token(evento)
     if not token:
         await _gravar_status(db, evento, status="sem_token", erro=None, total=None)
+        await db.commit()
         return {"ok": False, "motivo": "sem token cifrado"}
 
     situacoes_pagas = tuple(int(c) for c in (evento.doity_situacoes_pagas or list(DEFAULT_SITUACOES_PAGAS)))
@@ -177,8 +184,7 @@ async def sync_doity_evento(
     cursor = evento.doity_cursor or desde
     if cursor is None:
         # primeira carga sem hint: pega últimas ~24h
-        from datetime import timedelta as _td
-        cursor = datetime.now(tz=timezone.utc) - _td(days=1)
+        cursor = datetime.now(tz=timezone.utc) - timedelta(days=1)
     if cursor.tzinfo is None:
         cursor = cursor.replace(tzinfo=timezone.utc)
 
@@ -186,6 +192,9 @@ async def sync_doity_evento(
     novos_total = 0
     rodadas = 0
     paginas_lidas_total = 0
+    # IDs já processados nesta execução — desambigua "rodada repete tudo
+    # porque vários registros têm data_atualizacao no mesmo segundo".
+    processados_global: set[int] = set()
 
     try:
         async with DoityClient(token) as client:
@@ -195,14 +204,14 @@ async def sync_doity_evento(
                     raise DoityError("Doity: trava anti-loop disparou (>200 rodadas)")
 
                 cursor_str = formatar_data_atualizacao_para_doity(cursor)
-                novos_rodada = 0
                 paginas_lidas_rodada = 0
+                novos_unicos_rodada = 0  # IDs novos nesta execução
                 maior_atualizacao_rodada: datetime | None = None
                 vistos_ids: set[int] = set()
 
                 for page in range(1, MAX_PAGINAS_POR_RODADA + 1):
                     payload = await client.listar_participantes(
-                        evento.doity_event_id,
+                        doity_event_id,
                         data_atualizacao=cursor_str,
                         page=page,
                         limit=DEFAULT_PER_PAGE,
@@ -221,41 +230,64 @@ async def sync_doity_evento(
                         if pid_int in vistos_ids:
                             continue
                         vistos_ids.add(pid_int)
-                        valores = _mapear_participante(evento, participante, situacoes_pagas)
+                        valores = _mapear_participante(evento_id, participante, situacoes_pagas)
                         if valores is None:
                             continue
                         await _upsert_venda(db, valores)
                         total_processados += 1
-                        novos_rodada += 1
                         dt = valores.get("data_atualizacao_doity")
                         if dt and (maior_atualizacao_rodada is None or dt > maior_atualizacao_rodada):
                             maior_atualizacao_rodada = dt
+                        if pid_int not in processados_global:
+                            processados_global.add(pid_int)
+                            novos_unicos_rodada += 1
                     if len(itens) < DEFAULT_PER_PAGE:
                         break
 
-                novos_total += novos_rodada
+                novos_total += novos_unicos_rodada
 
-                # "fim" só conta se lemos ≥1 página com sucesso (já lemos page=1)
-                if novos_rodada == 0:
+                # Commit por rodada — evita perder trabalho se a próxima rodada
+                # falhar (token revogado no meio, timeout, etc).
+                await db.commit()
+
+                # Fim: nenhum item lido nesta rodada.
+                if len(vistos_ids) == 0:
+                    break
+
+                # Se nada novo (todos já tinham sido processados nesta execução)
+                # E o cursor não avança → terminou.
+                if novos_unicos_rodada == 0 and (
+                    maior_atualizacao_rodada is None or maior_atualizacao_rodada <= cursor
+                ):
                     break
 
                 if maior_atualizacao_rodada is None:
                     raise DoityError(
-                        "Doity: rodada com novos>0 mas sem data_atualizacao — abortando"
+                        "Doity: rodada com itens mas sem data_atualizacao — abortando"
                     )
-                if maior_atualizacao_rodada <= cursor:
-                    # trava anti-loop: cursor não avançou
-                    raise DoityError(
-                        f"Doity: cursor não avançou (maior={maior_atualizacao_rodada}, atual={cursor})"
-                    )
-                cursor = maior_atualizacao_rodada
+                if maior_atualizacao_rodada > cursor:
+                    cursor = maior_atualizacao_rodada
+                else:
+                    # Empate: vários participantes com mesmo data_atualizacao.
+                    # Já processamos todos deste segundo (in-memory dedup) → avança 1s.
+                    cursor = cursor + timedelta(seconds=1)
 
-        await _gravar_sucesso(db, evento, novo_cursor=cursor, total=total_processados)
+        await db.execute(
+            update(Evento)
+            .where(Evento.id == evento_id)
+            .values(
+                doity_cursor=cursor,
+                doity_ultimo_sync=datetime.now(tz=timezone.utc),
+                doity_ultimo_sync_status="ok",
+                doity_ultimo_sync_erro=None,
+                doity_ultimo_sync_total=total_processados,
+            )
+        )
         await db.commit()
         return {
             "ok": True,
-            "evento_id": str(evento.id),
-            "doity_event_id": evento.doity_event_id,
+            "evento_id": str(evento_id),
+            "doity_event_id": doity_event_id,
             "total": total_processados,
             "novos": novos_total,
             "rodadas": rodadas,
@@ -263,8 +295,6 @@ async def sync_doity_evento(
             "cursor": cursor.isoformat(),
         }
     except Exception as e:
-        evento_id = evento.id
-        doity_event_id = evento.doity_event_id
         log.exception("doity_sync falhou no evento %s", evento_id)
         await db.rollback()
         await db.execute(

@@ -280,23 +280,33 @@ _BR_TZ_OFFSET_HOURS = -3
 
 
 def parse_doity_datetime_br(value: str | None) -> datetime | None:
-    """Parsea uma string `YYYY-MM-DD HH:MM:SS` (ou ISO) de horário BR → UTC aware."""
+    """Parsea um datetime/data Doity → UTC aware.
+
+    Formatos vistos em campos reais:
+      - data_atualizacao / modified : "YYYY-MM-DD HH:MM:SS" (horário BR, naive)
+      - participante.data           : "DD/MM/YYYY"          (data brasileira)
+    """
     if not value:
         return None
     s = str(value).strip()
     if not s:
         return None
-    # tenta formatos comuns
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    formatos = (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y",
+        "%Y-%m-%d",
+    )
+    dt: datetime | None = None
+    for fmt in formatos:
         try:
-            dt = datetime.strptime(s[: len(fmt) + 4] if "%S" in fmt and len(s) > len(fmt) else s, fmt)
+            dt = datetime.strptime(s, fmt)
             break
         except ValueError:
-            dt = None
-    else:
-        dt = None
+            continue
     if dt is None:
-        # último recurso: fromisoformat
+        # último recurso: fromisoformat (aceita "...T..." com offset)
         try:
             dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
         except ValueError:
@@ -304,7 +314,6 @@ def parse_doity_datetime_br(value: str | None) -> datetime | None:
     # Se veio com tzinfo, normaliza pra UTC; senão assume BR.
     if dt.tzinfo is not None:
         return dt.astimezone(timezone.utc)
-    # naive → trata como horário BR (UTC-3) e converte pra UTC
     from datetime import timedelta as _td
     return (dt - _td(hours=_BR_TZ_OFFSET_HOURS)).replace(tzinfo=timezone.utc)
 
