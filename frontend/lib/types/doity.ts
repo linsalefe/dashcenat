@@ -21,6 +21,7 @@ export interface DoityAnaliseTotais {
   pagas: number;
   em_contestacao: number;
   gratuitas: number;
+  itens: number; // linhas cruas (ingressos + oficinas) — transparência vs. inscritos por pessoa
   receita: string; // Decimal vem como string no JSON
   ticket_medio: string | null;
 }

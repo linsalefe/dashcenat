@@ -279,7 +279,9 @@ export default function EventosPage() {
         title="Vendas dia a dia"
         description={
           analise
-            ? `${analise.totais.inscricoes.toLocaleString("pt-BR")} inscrições • ${analise.totais.pagas.toLocaleString(
+            ? `${analise.totais.inscricoes.toLocaleString("pt-BR")} inscritos • ${analise.totais.itens.toLocaleString(
+                "pt-BR",
+              )} itens (ingressos + oficinas) • ${analise.totais.pagas.toLocaleString(
                 "pt-BR",
               )} pagas • ${analise.serie_diaria.length} dias com vendas`
             : "Série diária de inscrições e pagamentos"

@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -225,12 +225,18 @@ async def get_analise(
 
     where_base = VendaDoity.evento_id == evento_id
 
+    # Inscritos reais = pessoas distintas. Cada pessoa gera várias linhas
+    # (ingresso de lote + oficinas, cada item é um registro Doity legítimo).
+    # A chave que bate exato com o painel Doity é o nome normalizado.
+    pessoa = func.lower(func.btrim(VendaDoity.nome))
+
     # ----- Totais -----
     q_tot = select(
-        func.count().label("inscricoes"),
-        func.count().filter(VendaDoity.pago.is_(True)).label("pagas"),
-        func.count().filter(VendaDoity.em_contestacao.is_(True)).label("em_contestacao"),
-        func.count().filter(VendaDoity.situacao_codigo == 9).label("gratuitas"),
+        func.count(distinct(pessoa)).label("inscricoes"),
+        func.count(distinct(pessoa)).filter(VendaDoity.pago.is_(True)).label("pagas"),
+        func.count(distinct(pessoa)).filter(VendaDoity.em_contestacao.is_(True)).label("em_contestacao"),
+        func.count(distinct(pessoa)).filter(VendaDoity.situacao_codigo == 9).label("gratuitas"),
+        func.count().label("itens"),  # linhas cruas (ingressos + oficinas) — transparência
         func.coalesce(
             func.sum(VendaDoity.valor_recebido).filter(VendaDoity.pago.is_(True)),
             0,
@@ -247,6 +253,7 @@ async def get_analise(
         pagas=pagas,
         em_contestacao=r_tot.em_contestacao or 0,
         gratuitas=r_tot.gratuitas or 0,
+        itens=r_tot.itens or 0,
         receita=receita,
         ticket_medio=ticket_medio,
     )
@@ -256,8 +263,8 @@ async def get_analise(
     q_dia = (
         select(
             dia.label("d"),
-            func.count().label("inscricoes"),
-            func.count().filter(VendaDoity.pago.is_(True)).label("pagas"),
+            func.count(distinct(pessoa)).label("inscricoes"),
+            func.count(distinct(pessoa)).filter(VendaDoity.pago.is_(True)).label("pagas"),
             func.coalesce(
                 func.sum(VendaDoity.valor_recebido).filter(VendaDoity.pago.is_(True)),
                 0,
@@ -283,12 +290,12 @@ async def get_analise(
         q = (
             select(
                 coluna.label("chave"),
-                func.count().label("inscricoes"),
-                func.count().filter(VendaDoity.pago.is_(True)).label("pagas"),
+                func.count(distinct(pessoa)).label("inscricoes"),
+                func.count(distinct(pessoa)).filter(VendaDoity.pago.is_(True)).label("pagas"),
             )
             .where(and_(where_base, coluna.is_not(None), coluna != ""))
             .group_by(coluna)
-            .order_by(func.count().desc())
+            .order_by(func.count(distinct(pessoa)).desc())
             .limit(top_n)
         )
         r = await db.execute(q)

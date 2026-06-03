@@ -85,6 +85,7 @@ class DoityAnaliseTotais(BaseModel):
     pagas: int
     em_contestacao: int
     gratuitas: int
+    itens: int  # linhas cruas em mkt.vendas_doity (ingressos + oficinas) — transparência
     receita: Decimal
     ticket_medio: Decimal | None
 
