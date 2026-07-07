@@ -31,6 +31,7 @@ import {
   Upload,
   BarChart3,
   Link2,
+  ListTodo,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -94,6 +95,12 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
       { href: "/marketing/landing-pages", label: "Landing Pages", icon: MousePointer },
       { href: "/marketing/seo", label: "SEO", icon: Search },
       { href: "/marketing/lancamentos", label: "Lançamentos", icon: Zap },
+    ],
+  },
+  {
+    label: "Gerência",
+    items: [
+      { href: "/gerencia", label: "Projetos (monday)", icon: ListTodo },
     ],
   },
   {
@@ -246,6 +253,8 @@ function SidebarNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
 const PAGE_TITLES: Record<string, string> = {
   "/overview": "Overview",
+  "/gerencia": "Gerência — Projetos (monday)",
+  "/gerencia/boards": "Gerência — Boards",
   "/comercial/funil": "Funil Comercial",
   "/comercial/preencher": "Preencher Funil",
   "/comercial/vendas": "Vendas",
