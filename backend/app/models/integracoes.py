@@ -25,7 +25,7 @@ class Integracao(Base):
     __tablename__ = "integracoes"
     __table_args__ = (
         CheckConstraint(
-            "servico IN ('hotmart','meta_ads','meta_instagram','meta_whatsapp','exact_sales')",
+            "servico IN ('hotmart','meta_ads','meta_instagram','meta_whatsapp','exact_sales','monday')",
             name="ck_integracoes_servico",
         ),
         {"schema": "core"},

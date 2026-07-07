@@ -10,6 +10,7 @@ from app.models.mkt import (
 )
 from app.models.tracking import UtmLink, TrackingEvento
 from app.models.integracoes import Integracao
+from app.models.gerencia import Board, Item, SnapshotDiario
 
 __all__ = [
     "User",
@@ -28,4 +29,7 @@ __all__ = [
     "UtmLink",
     "TrackingEvento",
     "Integracao",
+    "Board",
+    "Item",
+    "SnapshotDiario",
 ]
